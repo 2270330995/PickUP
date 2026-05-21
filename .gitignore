@@ -1,0 +1,59 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Editors =====
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ===== Env =====
+.env
+.env.local
+.env.*.local
+
+# ===== Backend (Java / Maven / Spring Boot) =====
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/**/*.class
+backend/**/*.jar
+backend/**/*.war
+backend/**/hs_err_pid*
+backend/.gradle/
+backend/build/
+backend/out/
+backend/HELP.md
+
+# ===== Frontend (Flutter / Dart) =====
+frontend/.dart_tool/
+frontend/.packages
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/pubspec.lock
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Flutter.podspec
+frontend/android/.gradle/
+frontend/android/captures/
+frontend/android/gradlew
+frontend/android/gradlew.bat
+frontend/android/local.properties
+frontend/android/**/GeneratedPluginRegistrant.java
+frontend/android/.idea/
+frontend/android/*.iml
+frontend/android/app/release/
+frontend/macos/Flutter/ephemeral/
+frontend/linux/flutter/ephemeral/
+frontend/windows/flutter/ephemeral/
+
+# Generated files
+frontend/**/*.g.dart
+frontend/**/*.freezed.dart
+
+# ===== Docker =====
+docker/data/

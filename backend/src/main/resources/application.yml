@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: pickup-backend
+  profiles:
+    active: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+
+pickup:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-me-to-a-long-random-base64-secret-at-least-32-bytes}
+      access-token-ttl-ms: ${JWT_EXPIRATION_MS:3600000}
+      refresh-token-ttl-ms: ${JWT_REFRESH_EXPIRATION_MS:2592000000}
+      issuer: pickup-backend
+  cors:
+    allowed-origins: "*"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    org.springframework.security: INFO
+    org.hibernate.SQL: INFO

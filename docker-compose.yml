@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pickup-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pickup}
+      POSTGRES_USER: ${POSTGRES_USER:-pickup}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pickup}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pickup_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pickup} -d ${POSTGRES_DB:-pickup}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pickup-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-pickup}
+      POSTGRES_USER: ${POSTGRES_USER:-pickup}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pickup}
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-base64-secret-at-least-32-bytes}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-2592000000}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+volumes:
+  pickup_postgres_data:

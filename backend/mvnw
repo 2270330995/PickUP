@@ -1,0 +1,34 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Maven Wrapper startup script (minimal POSIX version)
+# Downloads maven-wrapper.jar on first run, then delegates to it.
+# ----------------------------------------------------------------------------
+set -e
+
+BASE_DIR=$(cd "$(dirname "$0")" && pwd)
+WRAPPER_DIR="$BASE_DIR/.mvn/wrapper"
+WRAPPER_JAR="$WRAPPER_DIR/maven-wrapper.jar"
+WRAPPER_PROPERTIES="$WRAPPER_DIR/maven-wrapper.properties"
+
+if [ ! -f "$WRAPPER_JAR" ]; then
+    if [ ! -f "$WRAPPER_PROPERTIES" ]; then
+        echo "Cannot find $WRAPPER_PROPERTIES" >&2
+        exit 1
+    fi
+    WRAPPER_URL=$(grep '^wrapperUrl=' "$WRAPPER_PROPERTIES" | cut -d= -f2-)
+    echo "Downloading Maven wrapper from $WRAPPER_URL ..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -o "$WRAPPER_JAR" "$WRAPPER_URL"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO "$WRAPPER_JAR" "$WRAPPER_URL"
+    else
+        echo "Neither curl nor wget found; cannot download maven wrapper." >&2
+        exit 1
+    fi
+fi
+
+JAVA_EXE="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+exec "$JAVA_EXE" \
+    -classpath "$WRAPPER_JAR" \
+    "-Dmaven.multiModuleProjectDirectory=$BASE_DIR" \
+    org.apache.maven.wrapper.MavenWrapperMain "$@"
