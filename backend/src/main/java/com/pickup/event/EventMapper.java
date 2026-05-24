@@ -1,5 +1,7 @@
 package com.pickup.event;
 
+import com.pickup.common.enums.ParticipantRole;
+import com.pickup.common.enums.ParticipantStatus;
 import com.pickup.event.dto.EventResponse;
 import org.springframework.stereotype.Component;
 
@@ -7,6 +9,13 @@ import org.springframework.stereotype.Component;
 public class EventMapper {
 
     public EventResponse toResponse(EventEntity entity, int participantCount) {
+        return toResponse(entity, participantCount, null, null);
+    }
+
+    public EventResponse toResponse(EventEntity entity,
+                                    int participantCount,
+                                    ParticipantRole currentUserRole,
+                                    ParticipantStatus currentUserStatus) {
         return new EventResponse(
                 entity.getId(),
                 entity.getOrganizer().getId(),
@@ -21,6 +30,8 @@ public class EventMapper {
                 entity.getPlanningStatus(),
                 entity.isAssignmentGenerated(),
                 participantCount,
+                currentUserRole,
+                currentUserStatus,
                 entity.getCreatedAt()
         );
     }

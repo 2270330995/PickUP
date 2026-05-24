@@ -68,7 +68,7 @@ class _EventTile extends StatelessWidget {
           ],
         ),
         trailing: Chip(label: Text('${event.participantCount} joined')),
-        onTap: () => context.push(RoutePaths.eventDetailFor(event.id)),
+        onTap: () => context.go(RoutePaths.eventDetailFor(event.id)),
       ),
     );
   }

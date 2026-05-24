@@ -48,6 +48,9 @@ class EventApi {
   Future<EventResponse> close(String id) =>
       _eventCall(() => _dio.post<Map<String, dynamic>>('/events/$id/close'));
 
+  Future<EventResponse> reopen(String id) =>
+      _eventCall(() => _dio.post<Map<String, dynamic>>('/events/$id/reopen'));
+
   Future<EventResponse> cancel(String id) =>
       _eventCall(() => _dio.post<Map<String, dynamic>>('/events/$id/cancel'));
 
@@ -90,4 +93,9 @@ final myEventsProvider = FutureProvider.autoDispose<List<EventResponse>>((ref) {
 /// Open events I'm not yet joined to.
 final openEventsProvider = FutureProvider.autoDispose<List<EventResponse>>((ref) {
   return ref.watch(eventApiProvider).listEvents(scope: 'open');
+});
+
+/// Events I've joined as a participant (non-organizer).
+final joinedEventsProvider = FutureProvider.autoDispose<List<EventResponse>>((ref) {
+  return ref.watch(eventApiProvider).listEvents(scope: 'joined');
 });

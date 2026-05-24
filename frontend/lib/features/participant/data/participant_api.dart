@@ -57,6 +57,12 @@ class ParticipantApi {
         ));
   }
 
+  Future<EventParticipantResponse> rejoin(String eventId, String participantId) {
+    return _call(() => _dio.post<Map<String, dynamic>>(
+          '/events/$eventId/participants/$participantId/rejoin',
+        ));
+  }
+
   Future<void> remove(String eventId, String participantId) async {
     try {
       await _dio.delete<dynamic>('/events/$eventId/participants/$participantId');

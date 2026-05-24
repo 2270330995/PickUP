@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/router/route_paths.dart';
 import '../../dashboard/data/dashboard_api.dart';
 import '../../dashboard/data/dashboard_dtos.dart';
 import '../../participant/data/participant_api.dart';
@@ -18,7 +20,16 @@ class EventDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final eventAsync = ref.watch(eventDetailProvider(eventId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Event')),
+      appBar: AppBar(
+        title: const Text('Event'),
+        leading: context.canPop()
+            ? const BackButton()
+            : IconButton(
+                icon: const Icon(Icons.home_outlined),
+                tooltip: 'Dashboard',
+                onPressed: () => context.go(RoutePaths.organizer),
+              ),
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(eventDetailProvider(eventId));
@@ -61,42 +72,78 @@ class _EventDetailBody extends ConsumerWidget {
           children: [
             _Header(event: event),
             const SizedBox(height: 16),
-            dashboardAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (d) => _DashboardCard(data: d),
-            ),
-            const SizedBox(height: 16),
             participantsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, _) => Text(err is ApiException ? err.message : 'Failed to load'),
-              data: (participants) {
-                final myParticipant = participants.firstWhere(
-                  (p) => p.userId == currentUser.id,
-                  orElse: () => _emptyParticipant(),
-                );
-                final hasJoined = myParticipant.id.isNotEmpty;
+                    data: (participants) {
+                      final myParticipant = participants.firstWhere(
+                        (p) => p.userId == currentUser.id,
+                        orElse: () => _emptyParticipant(),
+                      );
+                      final hasJoined = myParticipant.id.isNotEmpty;
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!hasJoined && event.status == EventStatus.open)
-                      _JoinCard(eventId: event.id),
-                    if (hasJoined)
-                      _MyParticipationCard(eventId: event.id, participant: myParticipant),
-                    const SizedBox(height: 16),
-                    if (isOrganizer) _OrganizerActions(event: event),
-                    const SizedBox(height: 24),
-                    Text('Participants', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    ...participants.map((p) => _ParticipantTile(
-                          event: event,
-                          participant: p,
-                          isOrganizer: isOrganizer,
-                        )),
-                  ],
-                );
-              },
+                      final inactive = {
+                        ParticipantStatus.cancelled,
+                        ParticipantStatus.rejected,
+                        ParticipantStatus.noShow,
+                      };
+                      final active = participants
+                          .where((p) => !inactive.contains(p.status))
+                          .toList();
+                      final cancelled = participants
+                          .where((p) => inactive.contains(p.status))
+                          .toList();
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Participant-first ordering: surface "Your status" before
+                          // the broader event snapshot so participants see where
+                          // they stand the moment they open the event.
+                          if (hasJoined)
+                            _MyParticipationCard(eventId: event.id, participant: myParticipant),
+                          if (!hasJoined && event.status == EventStatus.open)
+                            _JoinCard(eventId: event.id),
+                          const SizedBox(height: 16),
+                          dashboardAsync.when(
+                            loading: () => const SizedBox.shrink(),
+                            error: (_, __) => const SizedBox.shrink(),
+                            data: (d) => _DashboardCard(data: d),
+                          ),
+                          const SizedBox(height: 16),
+                          if (isOrganizer) _OrganizerActions(event: event),
+                          const SizedBox(height: 24),
+                          Text('Participants (${active.length})',
+                              style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(height: 8),
+                          if (active.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Text('No active participants yet.'),
+                            ),
+                          ...active.map((p) => _ParticipantTile(
+                                event: event,
+                                participant: p,
+                                isOrganizer: isOrganizer,
+                                currentUserId: currentUser.id,
+                              )),
+                          if (cancelled.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            Text('Cancelled / Rejected (${cancelled.length})',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      color: Theme.of(context).colorScheme.outline,
+                                    )),
+                            const SizedBox(height: 8),
+                            ...cancelled.map((p) => _ParticipantTile(
+                                  event: event,
+                                  participant: p,
+                                  isOrganizer: isOrganizer,
+                                  currentUserId: currentUser.id,
+                                )),
+                          ],
+                        ],
+                      );
+                    },
             ),
           ],
         );
@@ -127,6 +174,14 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final myStatus = event.currentUserParticipantStatus;
+    final myRole = event.currentUserParticipantRole;
+    final showStatusChip = myStatus != null && myStatus != ParticipantStatus.unknown;
+    final showRoleChip = myRole != null &&
+        myRole != ParticipantRole.unknown &&
+        myRole != ParticipantRole.organizer;
+    final statusColors = _headerStatusColors(theme, myStatus);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -150,7 +205,19 @@ class _Header extends StatelessWidget {
               Expanded(child: Text(event.destinationAddress)),
             ]),
             const SizedBox(height: 12),
-            Wrap(spacing: 8, children: [
+            Wrap(spacing: 8, runSpacing: 4, children: [
+              if (showStatusChip)
+                Chip(
+                  backgroundColor: statusColors.background,
+                  avatar: Icon(Icons.how_to_reg,
+                      size: 18, color: statusColors.foreground),
+                  label: Text(
+                    'You: ${participantStatusLabel(myStatus)}',
+                    style: TextStyle(color: statusColors.foreground),
+                  ),
+                ),
+              if (showRoleChip)
+                Chip(label: Text(participantRoleLabel(myRole))),
               Chip(label: Text(eventStatusLabel(event.status))),
               Chip(label: Text('${event.participantCount} participants')),
             ]),
@@ -162,6 +229,48 @@ class _Header extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _HeaderStatusColors {
+  const _HeaderStatusColors({required this.background, required this.foreground});
+  final Color? background;
+  final Color? foreground;
+}
+
+_HeaderStatusColors _headerStatusColors(ThemeData theme, ParticipantStatus? status) {
+  final scheme = theme.colorScheme;
+  switch (status) {
+    case ParticipantStatus.confirmed:
+    case ParticipantStatus.checkedIn:
+    case ParticipantStatus.pickedUp:
+    case ParticipantStatus.arrived:
+      return _HeaderStatusColors(
+        background: scheme.primaryContainer,
+        foreground: scheme.onPrimaryContainer,
+      );
+    case ParticipantStatus.approved:
+    case ParticipantStatus.assigned:
+      return _HeaderStatusColors(
+        background: scheme.secondaryContainer,
+        foreground: scheme.onSecondaryContainer,
+      );
+    case ParticipantStatus.requested:
+    case ParticipantStatus.invited:
+      return _HeaderStatusColors(
+        background: scheme.tertiaryContainer,
+        foreground: scheme.onTertiaryContainer,
+      );
+    case ParticipantStatus.rejected:
+    case ParticipantStatus.cancelled:
+    case ParticipantStatus.noShow:
+      return _HeaderStatusColors(
+        background: scheme.errorContainer,
+        foreground: scheme.onErrorContainer,
+      );
+    case ParticipantStatus.unknown:
+    case null:
+      return const _HeaderStatusColors(background: null, foreground: null);
   }
 }
 
@@ -347,7 +456,7 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
             ]),
             if (!isOrganizerRow) ...[
               const SizedBox(height: 12),
-              Row(children: [
+              Wrap(spacing: 8, runSpacing: 8, children: [
                 if (canConfirm)
                   FilledButton(
                     onPressed: _working
@@ -358,7 +467,6 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
                             ),
                     child: const Text('Confirm'),
                   ),
-                if (canConfirm && canCancel) const SizedBox(width: 8),
                 if (canCancel)
                   OutlinedButton(
                     onPressed: _working
@@ -411,9 +519,11 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
     final api = ref.read(eventApiProvider);
     final status = widget.event.status;
     final canClose = status == EventStatus.open;
+    final canReopen = status == EventStatus.closed;
     final canCancel = status != EventStatus.completed && status != EventStatus.cancelled;
+    final canDelete = status == EventStatus.cancelled || status == EventStatus.draft;
 
-    if (!canClose && !canCancel) return const SizedBox.shrink();
+    if (!canClose && !canReopen && !canCancel && !canDelete) return const SizedBox.shrink();
 
     return Card(
       child: Padding(
@@ -434,6 +544,16 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
                           ),
                   child: const Text('Close to new joiners'),
                 ),
+              if (canReopen)
+                FilledButton(
+                  onPressed: _working
+                      ? null
+                      : () => _act(
+                            () => api.reopen(widget.event.id).then((_) {}),
+                            'Event reopened',
+                          ),
+                  child: const Text('Reopen to new joiners'),
+                ),
               if (canCancel)
                 OutlinedButton(
                   onPressed: _working
@@ -447,11 +567,60 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
                   ),
                   child: const Text('Cancel event'),
                 ),
+              if (canDelete)
+                FilledButton(
+                  onPressed: _working ? null : () => _confirmDelete(context),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
+                  child: const Text('Delete event'),
+                ),
             ]),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete event?'),
+        content: const Text(
+            'This permanently removes the event and cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep it'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    setState(() => _working = true);
+    try {
+      await ref.read(eventApiProvider).delete(widget.event.id);
+      ref.invalidate(myEventsProvider);
+      ref.invalidate(organizerDashboardProvider);
+      if (!context.mounted) return;
+      context.go(RoutePaths.organizer);
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (context.mounted) setState(() => _working = false);
+    }
   }
 }
 
@@ -460,10 +629,12 @@ class _ParticipantTile extends ConsumerStatefulWidget {
     required this.event,
     required this.participant,
     required this.isOrganizer,
+    required this.currentUserId,
   });
   final EventResponse event;
   final EventParticipantResponse participant;
   final bool isOrganizer;
+  final String currentUserId;
 
   @override
   ConsumerState<_ParticipantTile> createState() => _ParticipantTileState();
@@ -499,7 +670,13 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
     final api = ref.read(participantApiProvider);
     final canApproveReject =
         widget.isOrganizer && p.status == ParticipantStatus.requested;
-    final canRemove = widget.isOrganizer && p.role != ParticipantRole.organizer;
+    final canRemove = widget.isOrganizer &&
+        p.role != ParticipantRole.organizer &&
+        (p.status == ParticipantStatus.approved ||
+            p.status == ParticipantStatus.confirmed);
+    final canRejoin = p.userId == widget.currentUserId &&
+        p.status == ParticipantStatus.cancelled &&
+        widget.event.status == EventStatus.open;
 
     return Card(
       child: ListTile(
@@ -507,7 +684,7 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
         subtitle: Text(
           '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)}',
         ),
-        trailing: !widget.isOrganizer
+        trailing: (!widget.isOrganizer && !canRejoin)
             ? null
             : Wrap(
                 spacing: 4,
@@ -543,6 +720,17 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
                           : () => _act(
                                 () => api.remove(widget.event.id, p.id),
                                 'Removed',
+                              ),
+                    ),
+                  if (canRejoin)
+                    TextButton.icon(
+                      icon: const Icon(Icons.redo),
+                      label: const Text('Request to rejoin'),
+                      onPressed: _working
+                          ? null
+                          : () => _act(
+                                () => api.rejoin(widget.event.id, p.id).then((_) {}),
+                                'Rejoin request sent',
                               ),
                     ),
                 ],

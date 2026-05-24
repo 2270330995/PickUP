@@ -38,6 +38,19 @@ public class EventService {
             EnumSet.of(EventStatus.DRAFT, EventStatus.OPEN, EventStatus.CLOSED, EventStatus.IN_PROGRESS);
     private static final Set<ParticipantStatus> ACTIVE_PARTICIPANT_STATES =
             EnumSet.of(ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED);
+    /**
+     * Statuses that should NOT be counted toward "participants actually coming".
+     * Excludes drop-outs (cancelled/rejected/no-show) and unaccepted states
+     * (invited/requested) so the headline "X participants" number reflects
+     * accepted attendees only and matches across dashboard + event detail.
+     */
+    private static final Set<ParticipantStatus> NON_ATTENDING_PARTICIPANT_STATUSES =
+            EnumSet.of(
+                    ParticipantStatus.INVITED,
+                    ParticipantStatus.REQUESTED,
+                    ParticipantStatus.REJECTED,
+                    ParticipantStatus.CANCELLED,
+                    ParticipantStatus.NO_SHOW);
 
     private final EventRepository eventRepository;
     private final EventParticipantRepository participantRepository;
@@ -89,6 +102,26 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
+    public List<EventResponse> listJoinedEvents(UUID userId) {
+        // participantRepository.findAllByUserId fetches participant rows;
+        // p.getEvent() needs an active session — @Transactional provides it.
+        List<EventParticipantEntity> myRows = participantRepository.findAllByUserId(userId).stream()
+                .filter(p -> p.getRole() != ParticipantRole.ORGANIZER)
+                .toList();
+        // One row per event (a user has at most one participant row per event today).
+        Map<UUID, EventParticipantEntity> byEventId = new HashMap<>();
+        for (EventParticipantEntity p : myRows) {
+            byEventId.putIfAbsent(p.getEvent().getId(), p);
+        }
+        List<EventEntity> events = myRows.stream()
+                .map(EventParticipantEntity::getEvent)
+                .distinct()
+                .sorted(java.util.Comparator.comparing(EventEntity::getEventTime))
+                .toList();
+        return mapWithCounts(events, byEventId);
+    }
+
+    @Transactional(readOnly = true)
     public List<EventResponse> listOpenEvents(UUID currentUserId) {
         List<EventEntity> openEvents = eventRepository.findAllByStatusOrderByEventTimeAsc(EventStatus.OPEN);
         // exclude events I'm already a participant of
@@ -99,10 +132,19 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public EventResponse getEvent(UUID eventId) {
+    public EventResponse getEvent(UUID eventId, UUID viewerId) {
         EventEntity event = loadOrThrow(eventId);
-        long count = participantRepository.countByEventId(eventId);
-        return eventMapper.toResponse(event, (int) count);
+        long count = participantRepository.countActiveByEventId(eventId, NON_ATTENDING_PARTICIPANT_STATUSES);
+        ParticipantRole viewerRole = null;
+        ParticipantStatus viewerStatus = null;
+        if (viewerId != null) {
+            var viewerRow = participantRepository.findByEventIdAndUserId(eventId, viewerId);
+            if (viewerRow.isPresent()) {
+                viewerRole = viewerRow.get().getRole();
+                viewerStatus = viewerRow.get().getStatus();
+            }
+        }
+        return eventMapper.toResponse(event, (int) count, viewerRole, viewerStatus);
     }
 
     @Transactional
@@ -130,7 +172,7 @@ public class EventService {
         if (request.eventTime() != null) {
             event.setEventTime(request.eventTime());
         }
-        long count = participantRepository.countByEventId(eventId);
+        long count = participantRepository.countActiveByEventId(eventId, NON_ATTENDING_PARTICIPANT_STATUSES);
         return eventMapper.toResponse(event, (int) count);
     }
 
@@ -142,7 +184,19 @@ public class EventService {
             throw new ConflictException("Only OPEN events can be closed (current: " + event.getStatus() + ")");
         }
         event.setStatus(EventStatus.CLOSED);
-        long count = participantRepository.countByEventId(eventId);
+        long count = participantRepository.countActiveByEventId(eventId, NON_ATTENDING_PARTICIPANT_STATUSES);
+        return eventMapper.toResponse(event, (int) count);
+    }
+
+    @Transactional
+    public EventResponse reopenEvent(UUID organizerId, UUID eventId) {
+        EventEntity event = loadOrThrow(eventId);
+        requireOrganizer(event, organizerId);
+        if (event.getStatus() != EventStatus.CLOSED) {
+            throw new ConflictException("Only CLOSED events can be reopened (current: " + event.getStatus() + ")");
+        }
+        event.setStatus(EventStatus.OPEN);
+        long count = participantRepository.countActiveByEventId(eventId, NON_ATTENDING_PARTICIPANT_STATUSES);
         return eventMapper.toResponse(event, (int) count);
     }
 
@@ -154,7 +208,7 @@ public class EventService {
             throw new ConflictException("Event cannot be cancelled in status " + event.getStatus());
         }
         event.setStatus(EventStatus.CANCELLED);
-        long count = participantRepository.countByEventId(eventId);
+        long count = participantRepository.countActiveByEventId(eventId, NON_ATTENDING_PARTICIPANT_STATUSES);
         return eventMapper.toResponse(event, (int) count);
     }
 
@@ -243,9 +297,13 @@ public class EventService {
     }
 
     private EventDashboardSummary summarize(EventEntity event, List<EventParticipantEntity> participants) {
-        int total = participants.size();
-        int confirmedDrivers = 0, passengers = 0, pending = 0;
+        // "Total participants" means accepted attendees actually coming —
+        // not pending requests, rejections, cancellations, or no-shows.
+        // This matches the count shown on the event detail page.
+        int total = 0, confirmedDrivers = 0, passengers = 0, pending = 0;
         for (EventParticipantEntity p : participants) {
+            boolean attending = !NON_ATTENDING_PARTICIPANT_STATUSES.contains(p.getStatus());
+            if (attending) total++;
             boolean active = ACTIVE_PARTICIPANT_STATES.contains(p.getStatus());
             if (active && p.getRole() == ParticipantRole.DRIVER) confirmedDrivers++;
             if (active && p.getRole() == ParticipantRole.PASSENGER) passengers++;
@@ -257,15 +315,29 @@ public class EventService {
     }
 
     private List<EventResponse> mapWithCounts(List<EventEntity> events) {
+        return mapWithCounts(events, Map.of());
+    }
+
+    private List<EventResponse> mapWithCounts(List<EventEntity> events,
+                                              Map<UUID, EventParticipantEntity> viewerRowByEventId) {
         if (events.isEmpty()) {
             return List.of();
         }
         Set<UUID> ids = events.stream().map(EventEntity::getId).collect(Collectors.toSet());
         Map<UUID, Long> counts = new HashMap<>();
-        participantRepository.countParticipantsByEventIds(ids)
+        participantRepository.countParticipantsByEventIds(ids, NON_ATTENDING_PARTICIPANT_STATUSES)
                 .forEach(p -> counts.put(p.getEventId(), p.getTotal()));
         return events.stream()
-                .map(e -> eventMapper.toResponse(e, counts.getOrDefault(e.getId(), 0L).intValue()))
+                .map(e -> {
+                    EventParticipantEntity viewerRow = viewerRowByEventId.get(e.getId());
+                    ParticipantRole viewerRole = viewerRow != null ? viewerRow.getRole() : null;
+                    ParticipantStatus viewerStatus = viewerRow != null ? viewerRow.getStatus() : null;
+                    return eventMapper.toResponse(
+                            e,
+                            counts.getOrDefault(e.getId(), 0L).intValue(),
+                            viewerRole,
+                            viewerStatus);
+                })
                 .toList();
     }
 }

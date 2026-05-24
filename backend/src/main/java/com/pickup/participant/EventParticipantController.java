@@ -70,6 +70,13 @@ public class EventParticipantController {
         return ApiResponse.ok(participantService.cancel(CurrentUser.require().getId(), eventId, participantId));
     }
 
+    /** Participant-only: CANCELLED -> REQUESTED (self-cancelled rejoin). */
+    @PostMapping("/{participantId}/rejoin")
+    public ApiResponse<EventParticipantResponse> rejoin(@PathVariable UUID eventId,
+                                                        @PathVariable UUID participantId) {
+        return ApiResponse.ok(participantService.rejoin(CurrentUser.require().getId(), eventId, participantId));
+    }
+
     /** Organizer-only: hard delete participant row. */
     @DeleteMapping("/{participantId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

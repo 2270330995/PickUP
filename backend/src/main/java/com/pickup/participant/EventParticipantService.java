@@ -120,6 +120,22 @@ public class EventParticipantService {
     }
 
     @Transactional
+    public EventParticipantResponse rejoin(UUID currentUserId, UUID eventId, UUID participantId) {
+        EventParticipantEntity participant = loadParticipant(eventId, participantId);
+        requireParticipantOwner(participant, currentUserId);
+        if (participant.getStatus() != ParticipantStatus.CANCELLED) {
+            throw new ConflictException(
+                    "Only self-cancelled participants may rejoin (current status: " + participant.getStatus() + ")");
+        }
+        EventEntity event = participant.getEvent();
+        if (event.getStatus() != EventStatus.OPEN) {
+            throw new ConflictException("Event is no longer open for joining");
+        }
+        participant.setStatus(ParticipantStatus.REQUESTED);
+        return mapper.toResponse(participant);
+    }
+
+    @Transactional
     public void remove(UUID organizerId, UUID eventId, UUID participantId) {
         EventParticipantEntity participant = loadParticipant(eventId, participantId);
         eventService.requireOrganizer(participant.getEvent(), organizerId);

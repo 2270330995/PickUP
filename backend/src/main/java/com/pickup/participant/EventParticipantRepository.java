@@ -26,12 +26,23 @@ public interface EventParticipantRepository extends JpaRepository<EventParticipa
     long countByEventId(UUID eventId);
 
     @Query("""
+            select count(p) from EventParticipantEntity p
+             where p.event.id = :eventId
+               and p.status not in :excludedStatuses
+            """)
+    long countActiveByEventId(@Param("eventId") UUID eventId,
+                              @Param("excludedStatuses") java.util.Set<com.pickup.common.enums.ParticipantStatus> excludedStatuses);
+
+    @Query("""
             select p.event.id as eventId, count(p) as total
               from EventParticipantEntity p
              where p.event.id in :eventIds
+               and p.status not in :excludedStatuses
              group by p.event.id
             """)
-    List<EventParticipantCountProjection> countParticipantsByEventIds(@Param("eventIds") Set<UUID> eventIds);
+    List<EventParticipantCountProjection> countParticipantsByEventIds(
+            @Param("eventIds") Set<UUID> eventIds,
+            @Param("excludedStatuses") java.util.Collection<com.pickup.common.enums.ParticipantStatus> excludedStatuses);
 
     interface EventParticipantCountProjection {
         UUID getEventId();

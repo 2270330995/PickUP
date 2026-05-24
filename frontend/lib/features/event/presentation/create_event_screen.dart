@@ -76,7 +76,10 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       ref.invalidate(myEventsProvider);
       ref.invalidate(organizerDashboardProvider);
       if (!mounted) return;
-      context.go(RoutePaths.eventDetailFor(created.id));
+      // Go to organizer dashboard first so the back stack is intact,
+      // then push the new event detail on top of it.
+      context.go(RoutePaths.organizer);
+      context.push(RoutePaths.eventDetailFor(created.id));
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));

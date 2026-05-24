@@ -47,8 +47,9 @@ public class EventController {
             @RequestParam(name = "scope", defaultValue = "mine") String scope) {
         UUID userId = CurrentUser.require().getId();
         List<EventResponse> events = switch (scope) {
-            case "open" -> eventService.listOpenEvents(userId);
-            case "mine" -> eventService.listMyEvents(userId);
+            case "open"   -> eventService.listOpenEvents(userId);
+            case "mine"   -> eventService.listMyEvents(userId);
+            case "joined" -> eventService.listJoinedEvents(userId);
             default -> throw new IllegalArgumentException("Unsupported scope: " + scope);
         };
         return ApiResponse.ok(events);
@@ -56,8 +57,8 @@ public class EventController {
 
     @GetMapping("/{id}")
     public ApiResponse<EventResponse> get(@PathVariable UUID id) {
-        CurrentUser.require();
-        return ApiResponse.ok(eventService.getEvent(id));
+        UUID viewerId = CurrentUser.require().getId();
+        return ApiResponse.ok(eventService.getEvent(id, viewerId));
     }
 
     @PatchMapping("/{id}")
@@ -76,6 +77,12 @@ public class EventController {
     @PostMapping("/{id}/close")
     public ApiResponse<EventResponse> close(@PathVariable UUID id) {
         return ApiResponse.ok(eventService.closeEvent(CurrentUser.require().getId(), id));
+    }
+
+    /** Lifecycle: CLOSED -> OPEN. */
+    @PostMapping("/{id}/reopen")
+    public ApiResponse<EventResponse> reopen(@PathVariable UUID id) {
+        return ApiResponse.ok(eventService.reopenEvent(CurrentUser.require().getId(), id));
     }
 
     /** Lifecycle: any non-terminal state -> CANCELLED. */

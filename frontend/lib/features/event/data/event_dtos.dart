@@ -1,3 +1,5 @@
+import '../../participant/data/participant_dtos.dart';
+
 enum EventStatus { draft, open, closed, inProgress, completed, cancelled, unknown }
 
 EventStatus eventStatusFromString(String? raw) {
@@ -54,6 +56,8 @@ class EventResponse {
     required this.planningStatus,
     required this.assignmentGenerated,
     required this.participantCount,
+    this.currentUserParticipantRole,
+    this.currentUserParticipantStatus,
     required this.createdAt,
   });
 
@@ -71,10 +75,16 @@ class EventResponse {
   final String planningStatus;
   final bool assignmentGenerated;
   final int participantCount;
+  // The current viewer's participant role/status for this event when known.
+  // Null when the viewer is not a participant or the endpoint doesn't include it.
+  final ParticipantRole? currentUserParticipantRole;
+  final ParticipantStatus? currentUserParticipantStatus;
   final DateTime createdAt;
 
   factory EventResponse.fromJson(Map<String, dynamic> json) {
     final statusRaw = json['status'] as String? ?? 'UNKNOWN';
+    final viewerRoleRaw = json['currentUserParticipantRole'] as String?;
+    final viewerStatusRaw = json['currentUserParticipantStatus'] as String?;
     return EventResponse(
       id: json['id'] as String,
       organizerId: json['organizerId'] as String,
@@ -90,6 +100,11 @@ class EventResponse {
       planningStatus: json['planningStatus'] as String? ?? 'NOT_STARTED',
       assignmentGenerated: json['assignmentGenerated'] as bool? ?? false,
       participantCount: (json['participantCount'] as num?)?.toInt() ?? 0,
+      currentUserParticipantRole:
+          viewerRoleRaw == null ? null : participantRoleFromString(viewerRoleRaw),
+      currentUserParticipantStatus: viewerStatusRaw == null
+          ? null
+          : participantStatusFromString(viewerStatusRaw),
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
