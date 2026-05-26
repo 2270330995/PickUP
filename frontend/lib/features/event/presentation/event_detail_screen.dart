@@ -6,9 +6,12 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/router/route_paths.dart';
 import '../../dashboard/data/dashboard_api.dart';
 import '../../dashboard/data/dashboard_dtos.dart';
+import '../../assignment/data/assignment_api.dart';
 import '../../participant/data/participant_api.dart';
 import '../../participant/data/participant_dtos.dart';
+import '../../trip/data/trip_dtos.dart';
 import '../../user/data/user_api.dart';
+import '../../vehicle/presentation/vehicle_picker_sheet.dart';
 import '../data/event_api.dart';
 import '../data/event_dtos.dart';
 
@@ -432,6 +435,24 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
     }
   }
 
+  Future<void> _pickVehicle() async {
+    final result = await showVehiclePickerSheet(
+      context,
+      currentVehicleId: widget.participant.vehicleId,
+      // Don't let the driver clear the linkage once they're already assigned to a trip;
+      // backend enforces this too but pre-empting in UI is friendlier.
+      allowClear: widget.participant.status != ParticipantStatus.assigned,
+    );
+    if (result == null || !mounted) return;
+    await _act(
+      () => ref
+          .read(participantApiProvider)
+          .setVehicle(widget.eventId, widget.participant.id, result.vehicleId)
+          .then((_) {}),
+      result.vehicleId == null ? 'Vehicle cleared' : 'Vehicle selected',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.participant;
@@ -441,6 +462,11 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
         p.status == ParticipantStatus.approved ||
         p.status == ParticipantStatus.confirmed;
     final isOrganizerRow = p.role == ParticipantRole.organizer;
+    final isDriver = p.role == ParticipantRole.driver;
+    final canEditVehicle = isDriver &&
+        (p.status == ParticipantStatus.approved ||
+            p.status == ParticipantStatus.confirmed ||
+            p.status == ParticipantStatus.assigned);
 
     return Card(
       child: Padding(
@@ -454,6 +480,16 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
               Chip(label: Text(participantRoleLabel(p.role))),
               Chip(label: Text(participantStatusLabel(p.status))),
             ]),
+            if (isDriver) ...[
+              const SizedBox(height: 12),
+              _DriverVehicleRow(
+                participant: p,
+                onPick: _working ? null : _pickVehicle,
+                canEdit: canEditVehicle,
+              ),
+            ],
+            if (!isOrganizerRow && p.status == ParticipantStatus.assigned)
+              _MyTripLink(eventId: widget.eventId, participant: p),
             if (!isOrganizerRow) ...[
               const SizedBox(height: 12),
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -473,7 +509,7 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
                         ? null
                         : () => _act(
                               () => api.cancel(widget.eventId, p.id).then((_) {}),
-                              'Cancelled',
+                              'Cancel my spot',
                             ),
                     child: const Text('Cancel my spot'),
                   ),
@@ -481,6 +517,110 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Renders a "View your trip" button once the viewer has been assigned to
+/// a trip in this event. Loads the event's trip list (organizer-or-participant
+/// readable) and finds the trip belonging to the current user as driver or as
+/// a stop participant.
+class _MyTripLink extends ConsumerWidget {
+  const _MyTripLink({required this.eventId, required this.participant});
+  final String eventId;
+  final EventParticipantResponse participant;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final planAsync = ref.watch(eventAssignmentPlanProvider(eventId));
+    return planAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (plan) {
+        TripResponse? mine;
+        for (final trip in plan.trips) {
+          if (trip.driverId == participant.userId) {
+            mine = trip;
+            break;
+          }
+          final hasStop = trip.stops.any((s) => s.userId == participant.userId);
+          if (hasStop) {
+            mine = trip;
+            break;
+          }
+        }
+        if (mine == null) return const SizedBox.shrink();
+        final isDriver = mine.driverId == participant.userId;
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.alt_route),
+            label: Text(isDriver ? 'Open my driver trip' : 'Open my ride'),
+            onPressed: () => context.push(
+              isDriver
+                  ? RoutePaths.driverTripFor(mine!.id)
+                  : RoutePaths.passengerRideFor(mine!.id),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DriverVehicleRow extends StatelessWidget {
+  const _DriverVehicleRow({
+    required this.participant,
+    required this.onPick,
+    required this.canEdit,
+  });
+
+  final EventParticipantResponse participant;
+  final VoidCallback? onPick;
+  final bool canEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = participant.vehicleSummary;
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.directions_car_outlined),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  summary == null ? 'No vehicle selected' : summary.label,
+                  style: theme.textTheme.bodyLarge,
+                ),
+                if (summary != null)
+                  Text('${summary.seats} seats',
+                      style: theme.textTheme.bodySmall),
+                if (summary == null && canEdit)
+                  Text(
+                    'Required before the organizer can assign passengers',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (canEdit)
+            TextButton(
+              onPressed: onPick,
+              child: Text(summary == null ? 'Choose' : 'Change'),
+            ),
+        ],
       ),
     );
   }
@@ -523,7 +663,20 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
     final canCancel = status != EventStatus.completed && status != EventStatus.cancelled;
     final canDelete = status == EventStatus.cancelled || status == EventStatus.draft;
 
-    if (!canClose && !canReopen && !canCancel && !canDelete) return const SizedBox.shrink();
+    // "Manage assignments" is always available to the organizer once the event
+    // is in a planning-relevant state. We allow it for OPEN, CLOSED, and
+    // IN_PROGRESS so plans can still be reshuffled mid-event if needed.
+    final canManageAssignments = widget.event.status == EventStatus.open ||
+        widget.event.status == EventStatus.closed ||
+        widget.event.status == EventStatus.inProgress;
+
+    if (!canClose &&
+        !canReopen &&
+        !canCancel &&
+        !canDelete &&
+        !canManageAssignments) {
+      return const SizedBox.shrink();
+    }
 
     return Card(
       child: Padding(
@@ -534,6 +687,15 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
             Text('Organizer actions', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, children: [
+              if (canManageAssignments)
+                FilledButton.icon(
+                  icon: const Icon(Icons.alt_route),
+                  label: const Text('Manage assignments'),
+                  onPressed: _working
+                      ? null
+                      : () => context.push(
+                          RoutePaths.manageAssignmentsFor(widget.event.id)),
+                ),
               if (canClose)
                 OutlinedButton(
                   onPressed: _working

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/router/route_paths.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../user/data/user_api.dart';
 import '../../user/data/user_dtos.dart';
@@ -128,6 +130,29 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text('Save'),
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text('Garage', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.directions_car_outlined),
+                title: const Text('My vehicles'),
+                subtitle: const Text('Add or edit cars you can drive'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(RoutePaths.vehicles),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.alt_route_outlined),
+                title: const Text('My trips'),
+                subtitle: const Text('Trips where you drive or ride'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(RoutePaths.myTrips),
+              ),
             ),
             const SizedBox(height: 12),
             FilledButton.tonal(

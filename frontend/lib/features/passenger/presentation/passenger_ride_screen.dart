@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class PassengerRideScreen extends StatelessWidget {
+import '../../user/data/user_api.dart';
+import '../../trip/presentation/trip_detail_screen.dart';
+
+/// Thin wrapper around [TripDetailScreen] in passenger mode. We thread the
+/// current user id through so the shared widget can highlight the stop that
+/// belongs to the viewer.
+class PassengerRideScreen extends ConsumerWidget {
   const PassengerRideScreen({super.key, required this.tripId});
 
   final String tripId;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('My ride')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Trip ID: $tripId', style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            const Text('Live pickup tracking will subscribe to /topic/trips/{tripId} in Phase 2.'),
-          ],
-        ),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(currentUserProvider).valueOrNull;
+    return TripDetailScreen(
+      tripId: tripId,
+      mode: TripViewMode.passenger,
+      currentUserId: me?.id,
+      appBarTitle: 'My ride',
     );
   }
 }

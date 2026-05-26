@@ -133,6 +133,7 @@ class EventParticipantResponse {
     this.pickupLat,
     this.pickupLng,
     this.vehicleId,
+    this.vehicleSummary,
     required this.createdAt,
   });
 
@@ -149,11 +150,13 @@ class EventParticipantResponse {
   final double? pickupLat;
   final double? pickupLng;
   final String? vehicleId;
+  final ParticipantVehicleSummary? vehicleSummary;
   final DateTime createdAt;
 
   factory EventParticipantResponse.fromJson(Map<String, dynamic> json) {
     final roleRaw = json['role'] as String? ?? 'UNKNOWN';
     final statusRaw = json['status'] as String? ?? 'UNKNOWN';
+    final vs = json['vehicleSummary'];
     return EventParticipantResponse(
       id: json['id'] as String,
       eventId: json['eventId'] as String,
@@ -168,9 +171,55 @@ class EventParticipantResponse {
       pickupLat: (json['pickupLat'] as num?)?.toDouble(),
       pickupLng: (json['pickupLng'] as num?)?.toDouble(),
       vehicleId: json['vehicleId'] as String?,
+      vehicleSummary: vs is Map<String, dynamic>
+          ? ParticipantVehicleSummary.fromJson(vs)
+          : null,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
+}
+
+class ParticipantVehicleSummary {
+  const ParticipantVehicleSummary({
+    required this.id,
+    required this.make,
+    required this.model,
+    this.color,
+    this.plate,
+    required this.seats,
+  });
+
+  final String id;
+  final String make;
+  final String model;
+  final String? color;
+  final String? plate;
+  final int seats;
+
+  String get label {
+    final base = '$make $model';
+    if (color != null && color!.isNotEmpty) return '$base · $color';
+    return base;
+  }
+
+  factory ParticipantVehicleSummary.fromJson(Map<String, dynamic> json) {
+    return ParticipantVehicleSummary(
+      id: json['id'] as String,
+      make: json['make'] as String? ?? '',
+      model: json['model'] as String? ?? '',
+      color: json['color'] as String?,
+      plate: json['plate'] as String?,
+      seats: (json['seats'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class UpdateParticipantVehicleRequest {
+  const UpdateParticipantVehicleRequest({this.vehicleId});
+
+  final String? vehicleId;
+
+  Map<String, dynamic> toJson() => {'vehicleId': vehicleId};
 }
 
 class JoinEventRequest {

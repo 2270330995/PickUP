@@ -71,6 +71,19 @@ class ParticipantApi {
     }
   }
 
+  /// Driver attaches (or clears, via [vehicleId] = null) one of their vehicles
+  /// for a specific event.
+  Future<EventParticipantResponse> setVehicle(
+    String eventId,
+    String participantId,
+    String? vehicleId,
+  ) {
+    return _call(() => _dio.patch<Map<String, dynamic>>(
+          '/events/$eventId/participants/$participantId/vehicle',
+          data: UpdateParticipantVehicleRequest(vehicleId: vehicleId).toJson(),
+        ));
+  }
+
   Future<EventParticipantResponse> _call(
     Future<Response<Map<String, dynamic>>> Function() call,
   ) async {

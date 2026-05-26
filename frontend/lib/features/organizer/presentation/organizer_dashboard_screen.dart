@@ -26,6 +26,11 @@ class OrganizerDashboardScreen extends ConsumerWidget {
             onPressed: () => context.push(RoutePaths.browseEvents),
           ),
           IconButton(
+            tooltip: 'My trips',
+            icon: const Icon(Icons.alt_route),
+            onPressed: () => context.push(RoutePaths.myTrips),
+          ),
+          IconButton(
             tooltip: 'Profile',
             icon: const Icon(Icons.person_outline),
             onPressed: () => context.push(RoutePaths.profile),

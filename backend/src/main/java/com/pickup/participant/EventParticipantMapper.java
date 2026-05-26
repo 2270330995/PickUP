@@ -1,12 +1,15 @@
 package com.pickup.participant;
 
 import com.pickup.participant.dto.EventParticipantResponse;
+import com.pickup.participant.dto.EventParticipantResponse.VehicleSummary;
+import com.pickup.vehicle.VehicleEntity;
 import org.springframework.stereotype.Component;
 
 @Component
 public class EventParticipantMapper {
 
     public EventParticipantResponse toResponse(EventParticipantEntity entity) {
+        VehicleEntity vehicle = entity.getVehicle();
         return new EventParticipantResponse(
                 entity.getId(),
                 entity.getEvent().getId(),
@@ -18,7 +21,14 @@ public class EventParticipantMapper {
                 entity.getPickupAddress(),
                 entity.getPickupLat(),
                 entity.getPickupLng(),
-                entity.getVehicle() == null ? null : entity.getVehicle().getId(),
+                vehicle == null ? null : vehicle.getId(),
+                vehicle == null ? null : new VehicleSummary(
+                        vehicle.getId(),
+                        vehicle.getMake(),
+                        vehicle.getModel(),
+                        vehicle.getColor(),
+                        vehicle.getPlate(),
+                        vehicle.getSeats()),
                 entity.getCreatedAt()
         );
     }

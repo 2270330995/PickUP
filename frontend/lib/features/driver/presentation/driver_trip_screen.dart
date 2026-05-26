@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../trip/presentation/trip_detail_screen.dart';
+
+/// Thin wrapper around [TripDetailScreen] in driver mode so the existing
+/// /driver/trips/:tripId route keeps working.
 class DriverTripScreen extends StatelessWidget {
   const DriverTripScreen({super.key, required this.tripId});
 
@@ -7,19 +11,10 @@ class DriverTripScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Driver trip')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Trip ID: $tripId', style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            const Text('Step-by-step navigation lands in Phase 3 (Google Maps deep links).'),
-          ],
-        ),
-      ),
+    return TripDetailScreen(
+      tripId: tripId,
+      mode: TripViewMode.driver,
+      appBarTitle: 'Driver trip',
     );
   }
 }

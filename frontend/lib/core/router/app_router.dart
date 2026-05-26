@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/assignment/presentation/manage_assignments_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/driver/presentation/driver_trip_screen.dart';
@@ -11,6 +12,10 @@ import '../../features/organizer/presentation/organizer_dashboard_screen.dart';
 import '../../features/passenger/presentation/passenger_ride_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
+import '../../features/trip/presentation/my_trips_screen.dart';
+import '../../features/vehicle/data/vehicle_dtos.dart';
+import '../../features/vehicle/presentation/vehicle_form_screen.dart';
+import '../../features/vehicle/presentation/vehicle_list_screen.dart';
 import '../../shared/providers/auth_provider.dart';
 import 'route_paths.dart';
 
@@ -69,6 +74,36 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.eventDetail,
         builder: (_, state) => EventDetailScreen(
+          eventId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.vehicles,
+        builder: (_, __) => const VehicleListScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.vehicleNew,
+        builder: (_, __) => const VehicleFormScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.vehicleEdit,
+        // The list screen passes the existing VehicleResponse via context.push(..., extra: vehicle)
+        // so the form pre-populates without a second round-trip. If a user deep-links into
+        // this route we silently fall back to a fresh-add form.
+        builder: (_, state) {
+          final extra = state.extra;
+          return VehicleFormScreen(
+            existing: extra is VehicleResponse ? extra : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.myTrips,
+        builder: (_, __) => const MyTripsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.manageAssignments,
+        builder: (_, state) => ManageAssignmentsScreen(
           eventId: state.pathParameters['id']!,
         ),
       ),

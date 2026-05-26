@@ -10,8 +10,11 @@ import com.pickup.event.EventEntity;
 import com.pickup.event.EventService;
 import com.pickup.participant.dto.EventParticipantResponse;
 import com.pickup.participant.dto.JoinEventRequest;
+import com.pickup.participant.dto.UpdateParticipantVehicleRequest;
 import com.pickup.user.UserEntity;
 import com.pickup.user.UserRepository;
+import com.pickup.vehicle.VehicleEntity;
+import com.pickup.vehicle.VehicleService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,19 +30,25 @@ public class EventParticipantService {
             EnumSet.of(ParticipantRole.DRIVER, ParticipantRole.PASSENGER, ParticipantRole.INDEPENDENT_ATTENDEE);
     private static final Set<ParticipantStatus> CANCELLABLE_STATES =
             EnumSet.of(ParticipantStatus.REQUESTED, ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED);
+    /** Statuses in which a driver may attach or change their vehicle for an event. */
+    private static final Set<ParticipantStatus> VEHICLE_EDITABLE_STATES =
+            EnumSet.of(ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED, ParticipantStatus.ASSIGNED);
 
     private final EventParticipantRepository participantRepository;
     private final EventService eventService;
     private final UserRepository userRepository;
+    private final VehicleService vehicleService;
     private final EventParticipantMapper mapper;
 
     public EventParticipantService(EventParticipantRepository participantRepository,
                                    EventService eventService,
                                    UserRepository userRepository,
+                                   VehicleService vehicleService,
                                    EventParticipantMapper mapper) {
         this.participantRepository = participantRepository;
         this.eventService = eventService;
         this.userRepository = userRepository;
+        this.vehicleService = vehicleService;
         this.mapper = mapper;
     }
 
@@ -132,6 +141,48 @@ public class EventParticipantService {
             throw new ConflictException("Event is no longer open for joining");
         }
         participant.setStatus(ParticipantStatus.REQUESTED);
+        return mapper.toResponse(participant);
+    }
+
+    /**
+     * Driver attaches (or clears) one of their own vehicles for a specific event.
+     *
+     * <p>Authorization: only the participant's user may call this. Domain rules:
+     * <ul>
+     *   <li>Participant role must be DRIVER.</li>
+     *   <li>Status must be APPROVED, CONFIRMED, or ASSIGNED.</li>
+     *   <li>Vehicle (when non-null) must be owned by the caller.</li>
+     *   <li>Clearing the linkage (vehicleId = null) is rejected once the participant has
+     *       been placed on a trip (status = ASSIGNED), so trips never lose their vehicle silently.</li>
+     * </ul>
+     */
+    @Transactional
+    public EventParticipantResponse setVehicle(UUID currentUserId,
+                                               UUID eventId,
+                                               UUID participantId,
+                                               UpdateParticipantVehicleRequest request) {
+        EventParticipantEntity participant = loadParticipant(eventId, participantId);
+        requireParticipantOwner(participant, currentUserId);
+        if (participant.getRole() != ParticipantRole.DRIVER) {
+            throw new ConflictException(
+                    "Only DRIVER participants may attach a vehicle (current role: " + participant.getRole() + ")");
+        }
+        if (!VEHICLE_EDITABLE_STATES.contains(participant.getStatus())) {
+            throw new ConflictException(
+                    "Vehicle can only be set in status " + VEHICLE_EDITABLE_STATES
+                            + " (current: " + participant.getStatus() + ")");
+        }
+        UUID vehicleId = request.vehicleId();
+        if (vehicleId == null) {
+            if (participant.getStatus() == ParticipantStatus.ASSIGNED) {
+                throw new ConflictException(
+                        "Cannot clear vehicle while participant is ASSIGNED to a trip");
+            }
+            participant.setVehicle(null);
+        } else {
+            VehicleEntity vehicle = vehicleService.requireOwnedBy(vehicleId, currentUserId);
+            participant.setVehicle(vehicle);
+        }
         return mapper.toResponse(participant);
     }
 

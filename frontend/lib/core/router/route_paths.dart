@@ -9,10 +9,21 @@ class RoutePaths {
   static const browseEvents = '/events';
   static const createEvent = '/events/new';
   static const eventDetail = '/events/:id';
+
+  // Phase 3A — manual trips
+  static const vehicles = '/vehicles';
+  static const vehicleNew = '/vehicles/new';
+  static const vehicleEdit = '/vehicles/:id/edit';
+  static const myTrips = '/trips';
+  static const manageAssignments = '/events/:id/assignments';
+
   static const driverTrip = '/driver/trips/:tripId';
   static const passengerRide = '/passenger/rides/:tripId';
 
   static String eventDetailFor(String eventId) => '/events/$eventId';
   static String driverTripFor(String tripId) => '/driver/trips/$tripId';
   static String passengerRideFor(String tripId) => '/passenger/rides/$tripId';
+  static String vehicleEditFor(String vehicleId) => '/vehicles/$vehicleId/edit';
+  static String manageAssignmentsFor(String eventId) =>
+      '/events/$eventId/assignments';
 }

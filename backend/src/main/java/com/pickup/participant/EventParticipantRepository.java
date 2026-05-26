@@ -1,10 +1,13 @@
 package com.pickup.participant;
 
+import com.pickup.common.enums.ParticipantStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -17,13 +20,25 @@ public interface EventParticipantRepository extends JpaRepository<EventParticipa
 
     List<EventParticipantEntity> findAllByEventIdOrderByCreatedAtAsc(UUID eventId);
 
+    List<EventParticipantEntity> findAllByEventIdAndStatusIn(UUID eventId, Collection<ParticipantStatus> statuses);
+
     List<EventParticipantEntity> findAllByUserId(UUID userId);
 
     Optional<EventParticipantEntity> findByEventIdAndUserId(UUID eventId, UUID userId);
 
     boolean existsByEventIdAndUserId(UUID eventId, UUID userId);
 
+    boolean existsByVehicleId(UUID vehicleId);
+
     long countByEventId(UUID eventId);
+
+    /**
+     * Detach a vehicle from every participant row that references it. Used when a vehicle is
+     * about to be deleted so the FK constraint and any stale per-event linkages clear safely.
+     */
+    @Modifying
+    @Query("update EventParticipantEntity p set p.vehicle = null where p.vehicle.id = :vehicleId")
+    int clearVehicleByVehicleId(@Param("vehicleId") UUID vehicleId);
 
     @Query("""
             select count(p) from EventParticipantEntity p

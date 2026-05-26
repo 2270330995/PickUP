@@ -8,7 +8,14 @@ import java.util.UUID;
 
 @Repository
 public interface TripRepository extends JpaRepository<TripEntity, UUID> {
+
     List<TripEntity> findAllByEventId(UUID eventId);
 
+    List<TripEntity> findAllByEventIdOrderByCreatedAtAsc(UUID eventId);
+
     List<TripEntity> findAllByDriverId(UUID driverId);
+
+    List<TripEntity> findAllByDriverIdOrderByCreatedAtDesc(UUID driverId);
+
+    boolean existsByVehicleId(UUID vehicleId);
 }

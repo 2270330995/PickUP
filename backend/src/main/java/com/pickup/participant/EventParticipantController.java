@@ -3,11 +3,13 @@ package com.pickup.participant;
 import com.pickup.common.api.ApiResponse;
 import com.pickup.participant.dto.EventParticipantResponse;
 import com.pickup.participant.dto.JoinEventRequest;
+import com.pickup.participant.dto.UpdateParticipantVehicleRequest;
 import com.pickup.security.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -75,6 +77,19 @@ public class EventParticipantController {
     public ApiResponse<EventParticipantResponse> rejoin(@PathVariable UUID eventId,
                                                         @PathVariable UUID participantId) {
         return ApiResponse.ok(participantService.rejoin(CurrentUser.require().getId(), eventId, participantId));
+    }
+
+    /**
+     * Driver picks which of their own vehicles will be used for this event. Pass a
+     * {@code null} {@code vehicleId} in the body to clear the selection (allowed only
+     * before the participant is ASSIGNED to a trip).
+     */
+    @PatchMapping("/{participantId}/vehicle")
+    public ApiResponse<EventParticipantResponse> setVehicle(@PathVariable UUID eventId,
+                                                            @PathVariable UUID participantId,
+                                                            @Valid @RequestBody UpdateParticipantVehicleRequest request) {
+        return ApiResponse.ok(participantService.setVehicle(
+                CurrentUser.require().getId(), eventId, participantId, request));
     }
 
     /** Organizer-only: hard delete participant row. */
