@@ -12,7 +12,9 @@ import '../../features/organizer/presentation/organizer_dashboard_screen.dart';
 import '../../features/passenger/presentation/passenger_ride_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
+import '../../features/trip/presentation/event_trips_screen.dart';
 import '../../features/trip/presentation/my_trips_screen.dart';
+import '../../features/trip/presentation/trip_monitor_screen.dart';
 import '../../features/vehicle/data/vehicle_dtos.dart';
 import '../../features/vehicle/presentation/vehicle_form_screen.dart';
 import '../../features/vehicle/presentation/vehicle_list_screen.dart';
@@ -105,6 +107,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.manageAssignments,
         builder: (_, state) => ManageAssignmentsScreen(
           eventId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.eventTrips,
+        builder: (_, state) => EventTripsScreen(
+          eventId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.tripMonitor,
+        builder: (_, state) => TripMonitorScreen(
+          tripId: state.pathParameters['tripId']!,
         ),
       ),
       GoRoute(

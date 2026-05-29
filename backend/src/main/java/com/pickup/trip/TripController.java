@@ -1,15 +1,17 @@
 package com.pickup.trip;
 
 import com.pickup.common.api.ApiResponse;
-import com.pickup.common.api.NotImplemented;
 import com.pickup.event.assignment.AssignmentService;
 import com.pickup.event.assignment.dto.AssignmentPlanResponse;
 import com.pickup.security.CurrentUser;
 import com.pickup.trip.dto.TripResponse;
+import com.pickup.trip.dto.UpdateTripStopRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,10 +22,14 @@ import java.util.UUID;
 public class TripController {
 
     private final TripService tripService;
+    private final TripExecutionService tripExecutionService;
     private final AssignmentService assignmentService;
 
-    public TripController(TripService tripService, AssignmentService assignmentService) {
+    public TripController(TripService tripService,
+                          TripExecutionService tripExecutionService,
+                          AssignmentService assignmentService) {
         this.tripService = tripService;
+        this.tripExecutionService = tripExecutionService;
         this.assignmentService = assignmentService;
     }
 
@@ -43,20 +49,28 @@ public class TripController {
         return ApiResponse.ok(tripService.getTrip(tripId, CurrentUser.require().getId()));
     }
 
-    // TODO(phase-3b): implement trip start/complete + per-stop status transitions
-    //                 (driver-facing execution flow + currentStop updates + timestamps).
+    /** Driver starts the trip: ASSIGNED -> IN_PROGRESS + first stop activated. */
     @PostMapping("/trips/{tripId}/start")
-    public ApiResponse<Void> start(@PathVariable UUID tripId) {
-        return NotImplemented.phase1("POST /api/v1/trips/{tripId}/start");
+    public ApiResponse<TripResponse> start(@PathVariable UUID tripId) {
+        return ApiResponse.ok(tripExecutionService.start(tripId, CurrentUser.require().getId()));
     }
 
+    /** Driver completes the trip: ALL_PASSENGERS_PICKED -> COMPLETED. */
     @PostMapping("/trips/{tripId}/complete")
-    public ApiResponse<Void> complete(@PathVariable UUID tripId) {
-        return NotImplemented.phase1("POST /api/v1/trips/{tripId}/complete");
+    public ApiResponse<TripResponse> complete(@PathVariable UUID tripId) {
+        return ApiResponse.ok(tripExecutionService.complete(tripId, CurrentUser.require().getId()));
     }
 
+    /**
+     * Driver resolves the current ACTIVE stop with one of PICK_UP / SKIP / CANCEL.
+     * Returns the freshly mutated trip so the client renders the next state without
+     * an extra round-trip.
+     */
     @PatchMapping("/trips/{tripId}/stops/{stopId}")
-    public ApiResponse<Void> updateStop(@PathVariable UUID tripId, @PathVariable UUID stopId) {
-        return NotImplemented.phase1("PATCH /api/v1/trips/{tripId}/stops/{stopId}");
+    public ApiResponse<TripResponse> updateStop(@PathVariable UUID tripId,
+                                                @PathVariable UUID stopId,
+                                                @Valid @RequestBody UpdateTripStopRequest request) {
+        return ApiResponse.ok(tripExecutionService.updateStop(
+                tripId, stopId, CurrentUser.require().getId(), request));
     }
 }

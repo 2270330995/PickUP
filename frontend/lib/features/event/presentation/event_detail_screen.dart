@@ -114,7 +114,12 @@ class _EventDetailBody extends ConsumerWidget {
                             data: (d) => _DashboardCard(data: d),
                           ),
                           const SizedBox(height: 16),
-                          if (isOrganizer) _OrganizerActions(event: event),
+                          if (isOrganizer)
+                            _OrganizerActions(event: event)
+                          else if (hasJoined &&
+                              myParticipant.role != ParticipantRole.organizer &&
+                              _canViewEventTrips(myParticipant.status))
+                            _EventTripsLink(eventId: event.id),
                           const SizedBox(height: 24),
                           Text('Participants (${active.length})',
                               style: Theme.of(context).textTheme.titleMedium),
@@ -152,6 +157,14 @@ class _EventDetailBody extends ConsumerWidget {
         );
       },
     );
+  }
+
+  static bool _canViewEventTrips(ParticipantStatus status) {
+    return status == ParticipantStatus.confirmed ||
+        status == ParticipantStatus.assigned ||
+        status == ParticipantStatus.pickedUp ||
+        status == ParticipantStatus.arrived ||
+        status == ParticipantStatus.checkedIn;
   }
 
   EventParticipantResponse _emptyParticipant() {
@@ -526,6 +539,28 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
 /// a trip in this event. Loads the event's trip list (organizer-or-participant
 /// readable) and finds the trip belonging to the current user as driver or as
 /// a stop participant.
+class _EventTripsLink extends StatelessWidget {
+  const _EventTripsLink({required this.eventId});
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.monitor_heart_outlined),
+            label: const Text('View event trips'),
+            onPressed: () => context.push(RoutePaths.eventTripsFor(eventId)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MyTripLink extends ConsumerWidget {
   const _MyTripLink({required this.eventId, required this.participant});
   final String eventId;
@@ -687,7 +722,7 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
             Text('Organizer actions', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, children: [
-              if (canManageAssignments)
+              if (canManageAssignments) ...[
                 FilledButton.icon(
                   icon: const Icon(Icons.alt_route),
                   label: const Text('Manage assignments'),
@@ -696,6 +731,15 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
                       : () => context.push(
                           RoutePaths.manageAssignmentsFor(widget.event.id)),
                 ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.monitor_heart_outlined),
+                  label: const Text('Event trips'),
+                  onPressed: _working
+                      ? null
+                      : () => context.push(
+                          RoutePaths.eventTripsFor(widget.event.id)),
+                ),
+              ],
               if (canClose)
                 OutlinedButton(
                   onPressed: _working

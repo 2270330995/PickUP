@@ -1,5 +1,6 @@
 package com.pickup.trip.dto;
 
+import com.pickup.common.enums.NavigationTargetType;
 import com.pickup.common.enums.StopStatus;
 import com.pickup.common.enums.TripStatus;
 
@@ -29,7 +30,10 @@ public record TripResponse(
         String encodedPolyline,
         Instant startedAt,
         Instant completedAt,
-        List<TripStopSummary> stops
+        List<TripStopSummary> stops,
+        NavigationTargetType navigationTargetType,
+        String navigationLabel,
+        String navigationUrl
 ) {
     /** Minimal vehicle detail inlined on trip responses. */
     public record VehicleSummary(
@@ -53,6 +57,8 @@ public record TripResponse(
             double lat,
             double lng,
             StopStatus status,
-            Integer etaMinutes
+            Integer etaMinutes,
+            Instant actualArrivalTime,
+            Instant actualDepartureTime
     ) {}
 }
