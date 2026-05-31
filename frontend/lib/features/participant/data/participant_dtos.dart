@@ -222,6 +222,24 @@ class UpdateParticipantVehicleRequest {
   Map<String, dynamic> toJson() => {'vehicleId': vehicleId};
 }
 
+class UpdateParticipantPickupRequest {
+  const UpdateParticipantPickupRequest({
+    required this.pickupAddress,
+    required this.pickupLat,
+    required this.pickupLng,
+  });
+
+  final String pickupAddress;
+  final double pickupLat;
+  final double pickupLng;
+
+  Map<String, dynamic> toJson() => {
+        'pickupAddress': pickupAddress,
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+      };
+}
+
 class JoinEventRequest {
   const JoinEventRequest({
     required this.role,

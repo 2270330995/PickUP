@@ -38,6 +38,13 @@ public class EventService {
             EnumSet.of(EventStatus.DRAFT, EventStatus.OPEN, EventStatus.CLOSED, EventStatus.IN_PROGRESS);
     private static final Set<ParticipantStatus> ACTIVE_PARTICIPANT_STATES =
             EnumSet.of(ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED);
+    /** Passengers still waiting for or actively on a ride (excludes arrived / checked-in). */
+    private static final Set<ParticipantStatus> PASSENGER_NEEDS_RIDE_STATES =
+            EnumSet.of(
+                    ParticipantStatus.APPROVED,
+                    ParticipantStatus.CONFIRMED,
+                    ParticipantStatus.ASSIGNED,
+                    ParticipantStatus.PICKED_UP);
     /**
      * Statuses that should NOT be counted toward "participants actually coming".
      * Excludes drop-outs (cancelled/rejected/no-show) and unaccepted states
@@ -251,7 +258,7 @@ public class EventService {
                     if (isActive) organizers++;
                 }
                 case DRIVER -> {
-                    if (isActive) {
+                    if (isAttendingDriver(p)) {
                         drivers++;
                         if (p.getVehicle() == null) {
                             driversMissingVehicle++;
@@ -261,7 +268,7 @@ public class EventService {
                     }
                 }
                 case PASSENGER -> {
-                    if (isActive) passengers++;
+                    if (PASSENGER_NEEDS_RIDE_STATES.contains(p.getStatus())) passengers++;
                 }
                 case INDEPENDENT_ATTENDEE -> {
                     if (isActive) independents++;
@@ -304,9 +311,9 @@ public class EventService {
         for (EventParticipantEntity p : participants) {
             boolean attending = !NON_ATTENDING_PARTICIPANT_STATUSES.contains(p.getStatus());
             if (attending) total++;
-            boolean active = ACTIVE_PARTICIPANT_STATES.contains(p.getStatus());
-            if (active && p.getRole() == ParticipantRole.DRIVER) confirmedDrivers++;
-            if (active && p.getRole() == ParticipantRole.PASSENGER) passengers++;
+            if (isAttendingDriver(p)) confirmedDrivers++;
+            if (PASSENGER_NEEDS_RIDE_STATES.contains(p.getStatus())
+                    && p.getRole() == ParticipantRole.PASSENGER) passengers++;
             if (p.getStatus() == ParticipantStatus.REQUESTED) pending++;
         }
         return new EventDashboardSummary(
@@ -339,5 +346,11 @@ public class EventService {
                             viewerStatus);
                 })
                 .toList();
+    }
+
+    /** Drivers who accepted and remain part of the event, including after trip completion. */
+    private static boolean isAttendingDriver(EventParticipantEntity p) {
+        return p.getRole() == ParticipantRole.DRIVER
+                && !NON_ATTENDING_PARTICIPANT_STATUSES.contains(p.getStatus());
     }
 }

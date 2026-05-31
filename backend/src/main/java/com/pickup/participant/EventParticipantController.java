@@ -3,6 +3,7 @@ package com.pickup.participant;
 import com.pickup.common.api.ApiResponse;
 import com.pickup.participant.dto.EventParticipantResponse;
 import com.pickup.participant.dto.JoinEventRequest;
+import com.pickup.participant.dto.UpdateParticipantPickupRequest;
 import com.pickup.participant.dto.UpdateParticipantVehicleRequest;
 import com.pickup.security.CurrentUser;
 import jakarta.validation.Valid;
@@ -77,6 +78,15 @@ public class EventParticipantController {
     public ApiResponse<EventParticipantResponse> rejoin(@PathVariable UUID eventId,
                                                         @PathVariable UUID participantId) {
         return ApiResponse.ok(participantService.rejoin(CurrentUser.require().getId(), eventId, participantId));
+    }
+
+    /** Passenger sets or updates their pickup location for this event. */
+    @PatchMapping("/{participantId}/pickup")
+    public ApiResponse<EventParticipantResponse> setPickup(@PathVariable UUID eventId,
+                                                           @PathVariable UUID participantId,
+                                                           @Valid @RequestBody UpdateParticipantPickupRequest request) {
+        return ApiResponse.ok(participantService.setPickup(
+                CurrentUser.require().getId(), eventId, participantId, request));
     }
 
     /**

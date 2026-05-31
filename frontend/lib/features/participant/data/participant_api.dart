@@ -84,6 +84,18 @@ class ParticipantApi {
         ));
   }
 
+  /// Passenger sets or updates their pickup location for a specific event.
+  Future<EventParticipantResponse> setPickup(
+    String eventId,
+    String participantId,
+    UpdateParticipantPickupRequest request,
+  ) {
+    return _call(() => _dio.patch<Map<String, dynamic>>(
+          '/events/$eventId/participants/$participantId/pickup',
+          data: request.toJson(),
+        ));
+  }
+
   Future<EventParticipantResponse> _call(
     Future<Response<Map<String, dynamic>>> Function() call,
   ) async {

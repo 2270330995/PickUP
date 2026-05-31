@@ -47,16 +47,16 @@ class AuthController extends StateNotifier<AuthState> {
 
   final Ref _ref;
 
-  SecureTokenStorage get _storage => _ref.read(secureTokenStorageProvider);
+  TokenStorage get _storage => _ref.read(secureTokenStorageProvider);
   AuthApi get _api => _ref.read(authApiProvider);
 
   Future<void> _bootstrap() async {
-    final refresh = await _storage.readRefreshToken();
-    if (refresh == null || refresh.isEmpty) {
-      state = const AuthState(status: AuthStatus.unauthenticated);
-      return;
-    }
     try {
+      final refresh = await _storage.readRefreshToken();
+      if (refresh == null || refresh.isEmpty) {
+        state = const AuthState(status: AuthStatus.unauthenticated);
+        return;
+      }
       final result = await _api.refresh(refresh);
       await _storage.writeTokens(
         access: result.accessToken,
@@ -64,6 +64,9 @@ class AuthController extends StateNotifier<AuthState> {
       );
       state = AuthState(status: AuthStatus.authenticated, user: result.user);
     } on ApiException {
+      await _storage.clear();
+      state = const AuthState(status: AuthStatus.unauthenticated);
+    } catch (_) {
       await _storage.clear();
       state = const AuthState(status: AuthStatus.unauthenticated);
     }
@@ -82,6 +85,12 @@ class AuthController extends StateNotifier<AuthState> {
       state = AuthState(
         status: AuthStatus.unauthenticated,
         errorMessage: e.message,
+      );
+      rethrow;
+    } catch (e) {
+      state = const AuthState(
+        status: AuthStatus.unauthenticated,
+        errorMessage: 'Could not save your session locally',
       );
       rethrow;
     }
@@ -110,6 +119,12 @@ class AuthController extends StateNotifier<AuthState> {
       state = AuthState(
         status: AuthStatus.unauthenticated,
         errorMessage: e.message,
+      );
+      rethrow;
+    } catch (e) {
+      state = const AuthState(
+        status: AuthStatus.unauthenticated,
+        errorMessage: 'Could not save your session locally',
       );
       rethrow;
     }

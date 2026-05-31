@@ -10,6 +10,7 @@ import com.pickup.event.EventEntity;
 import com.pickup.event.EventService;
 import com.pickup.participant.dto.EventParticipantResponse;
 import com.pickup.participant.dto.JoinEventRequest;
+import com.pickup.participant.dto.UpdateParticipantPickupRequest;
 import com.pickup.participant.dto.UpdateParticipantVehicleRequest;
 import com.pickup.user.UserEntity;
 import com.pickup.user.UserRepository;
@@ -33,6 +34,9 @@ public class EventParticipantService {
     /** Statuses in which a driver may attach or change their vehicle for an event. */
     private static final Set<ParticipantStatus> VEHICLE_EDITABLE_STATES =
             EnumSet.of(ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED, ParticipantStatus.ASSIGNED);
+    /** Statuses in which a passenger may set or change their pickup location. */
+    private static final Set<ParticipantStatus> PICKUP_EDITABLE_STATES =
+            EnumSet.of(ParticipantStatus.REQUESTED, ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED);
 
     private final EventParticipantRepository participantRepository;
     private final EventService eventService;
@@ -156,6 +160,38 @@ public class EventParticipantService {
      *       been placed on a trip (status = ASSIGNED), so trips never lose their vehicle silently.</li>
      * </ul>
      */
+    /**
+     * Passenger sets (or updates) their pickup location for a specific event.
+     *
+     * <p>Authorization: only the participant's user may call this. Domain rules:
+     * <ul>
+     *   <li>Participant role must be PASSENGER.</li>
+     *   <li>Status must be REQUESTED, APPROVED, or CONFIRMED (not yet ASSIGNED to a trip).</li>
+     * </ul>
+     */
+    @Transactional
+    public EventParticipantResponse setPickup(UUID currentUserId,
+                                            UUID eventId,
+                                            UUID participantId,
+                                            UpdateParticipantPickupRequest request) {
+        EventParticipantEntity participant = loadParticipant(eventId, participantId);
+        requireParticipantOwner(participant, currentUserId);
+        if (participant.getRole() != ParticipantRole.PASSENGER) {
+            throw new ConflictException(
+                    "Only PASSENGER participants may set a pickup location (current role: "
+                            + participant.getRole() + ")");
+        }
+        if (!PICKUP_EDITABLE_STATES.contains(participant.getStatus())) {
+            throw new ConflictException(
+                    "Pickup location can only be set in status " + PICKUP_EDITABLE_STATES
+                            + " (current: " + participant.getStatus() + ")");
+        }
+        participant.setPickupAddress(request.pickupAddress().trim());
+        participant.setPickupLat(request.pickupLat());
+        participant.setPickupLng(request.pickupLng());
+        return mapper.toResponse(participant);
+    }
+
     @Transactional
     public EventParticipantResponse setVehicle(UUID currentUserId,
                                                UUID eventId,

@@ -9,6 +9,7 @@ import '../../dashboard/data/dashboard_dtos.dart';
 import '../../assignment/data/assignment_api.dart';
 import '../../participant/data/participant_api.dart';
 import '../../participant/data/participant_dtos.dart';
+import '../../participant/presentation/pickup_address_sheet.dart';
 import '../../trip/data/trip_dtos.dart';
 import '../../user/data/user_api.dart';
 import '../../vehicle/presentation/vehicle_picker_sheet.dart';
@@ -343,13 +344,42 @@ class _JoinCard extends ConsumerStatefulWidget {
 class _JoinCardState extends ConsumerState<_JoinCard> {
   ParticipantRole _role = ParticipantRole.passenger;
   bool _submitting = false;
+  final _addressCtrl = TextEditingController();
+  final _latCtrl = TextEditingController();
+  final _lngCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _addressCtrl.dispose();
+    _latCtrl.dispose();
+    _lngCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _needsPickup => _role == ParticipantRole.passenger;
 
   Future<void> _join() async {
+    if (_needsPickup) {
+      final address = _addressCtrl.text.trim();
+      final lat = double.tryParse(_latCtrl.text.trim());
+      final lng = double.tryParse(_lngCtrl.text.trim());
+      if (address.isEmpty || lat == null || lng == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter your pickup address and coordinates')),
+        );
+        return;
+      }
+    }
     setState(() => _submitting = true);
     try {
       await ref.read(participantApiProvider).selfJoin(
             widget.eventId,
-            JoinEventRequest(role: _role),
+            JoinEventRequest(
+              role: _role,
+              pickupAddress: _needsPickup ? _addressCtrl.text.trim() : null,
+              pickupLat: _needsPickup ? double.parse(_latCtrl.text.trim()) : null,
+              pickupLng: _needsPickup ? double.parse(_lngCtrl.text.trim()) : null,
+            ),
           );
       _refreshAll();
       if (!mounted) return;
@@ -397,6 +427,45 @@ class _JoinCardState extends ConsumerState<_JoinCard> {
               ],
               onChanged: (v) => setState(() => _role = v ?? ParticipantRole.passenger),
             ),
+            if (_needsPickup) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _addressCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Pickup address',
+                  border: OutlineInputBorder(),
+                ),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _latCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          signed: true, decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Latitude',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _lngCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          signed: true, decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Longitude',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _submitting ? null : _join,
@@ -466,6 +535,29 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
     );
   }
 
+  Future<void> _editPickup() async {
+    final p = widget.participant;
+    final result = await showPickupAddressSheet(
+      context,
+      currentAddress: p.pickupAddress,
+      currentLat: p.pickupLat,
+      currentLng: p.pickupLng,
+    );
+    if (result == null || !mounted) return;
+    await _act(
+      () => ref.read(participantApiProvider).setPickup(
+            widget.eventId,
+            p.id,
+            UpdateParticipantPickupRequest(
+              pickupAddress: result.pickupAddress,
+              pickupLat: result.pickupLat,
+              pickupLng: result.pickupLng,
+            ),
+          ).then((_) {}),
+      'Pickup location saved',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.participant;
@@ -476,10 +568,16 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
         p.status == ParticipantStatus.confirmed;
     final isOrganizerRow = p.role == ParticipantRole.organizer;
     final isDriver = p.role == ParticipantRole.driver;
+    final isPassenger = p.role == ParticipantRole.passenger;
     final canEditVehicle = isDriver &&
         (p.status == ParticipantStatus.approved ||
             p.status == ParticipantStatus.confirmed ||
             p.status == ParticipantStatus.assigned);
+    final canEditPickup = isPassenger &&
+        (p.status == ParticipantStatus.requested ||
+            p.status == ParticipantStatus.approved ||
+            p.status == ParticipantStatus.confirmed);
+    final hasPickup = p.pickupAddress != null && p.pickupAddress!.isNotEmpty;
 
     return Card(
       child: Padding(
@@ -499,6 +597,15 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
                 participant: p,
                 onPick: _working ? null : _pickVehicle,
                 canEdit: canEditVehicle,
+              ),
+            ],
+            if (isPassenger) ...[
+              const SizedBox(height: 12),
+              _PassengerPickupRow(
+                participant: p,
+                onEdit: _working ? null : _editPickup,
+                canEdit: canEditPickup,
+                hasPickup: hasPickup,
               ),
             ],
             if (!isOrganizerRow && p.status == ParticipantStatus.assigned)
@@ -654,6 +761,61 @@ class _DriverVehicleRow extends StatelessWidget {
             TextButton(
               onPressed: onPick,
               child: Text(summary == null ? 'Choose' : 'Change'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PassengerPickupRow extends StatelessWidget {
+  const _PassengerPickupRow({
+    required this.participant,
+    required this.onEdit,
+    required this.canEdit,
+    required this.hasPickup,
+  });
+
+  final EventParticipantResponse participant;
+  final VoidCallback? onEdit;
+  final bool canEdit;
+  final bool hasPickup;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasPickup ? participant.pickupAddress! : 'No pickup address',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                if (!hasPickup && canEdit)
+                  Text(
+                    'Required before the organizer can assign you to a ride',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (canEdit)
+            TextButton(
+              onPressed: onEdit,
+              child: Text(hasPickup ? 'Change' : 'Add'),
             ),
         ],
       ),

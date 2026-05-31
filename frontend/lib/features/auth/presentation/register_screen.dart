@@ -41,6 +41,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account created but session could not be saved. Try signing in.'),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -90,12 +97,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _passwordCtrl,
                   obscureText: true,
                   decoration: const InputDecoration(
-                    labelText: 'Password (8+ characters)',
+                    labelText: 'Password',
                     border: OutlineInputBorder(),
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Password is required';
-                    if (v.length < 8) return 'Use at least 8 characters';
                     return null;
                   },
                 ),
