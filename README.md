@@ -64,6 +64,43 @@ To stop and wipe data:
 docker compose down -v
 ```
 
+## Quick testing (demo data)
+
+For local/docker development, the backend can auto-create a full test scenario so you don't have to register accounts manually.
+
+**On a fresh database** (`docker compose down -v && docker compose up --build`), demo data is seeded automatically on startup.
+
+### Demo accounts
+
+All accounts use password **`test`**:
+
+| Email | Role |
+|-------|------|
+| `john@test.com` | Organizer |
+| `jack@test.com` | Driver (Toyota Corolla) |
+| `jacob@test.com` | Driver (Honda Civic) |
+| `dell@test.com` | Passenger |
+| `james@test.com` | Passenger |
+| `emma@test.com` | Passenger |
+| `noah@test.com` | Passenger |
+| `olivia@test.com` | Passenger |
+| `liam@test.com` | Passenger |
+
+The demo event is **PickUP Demo Event** with pickup addresses and vehicles already set up.
+
+### Manual seed / refresh demo
+
+```bash
+curl -X POST http://localhost:8080/api/v1/dev/seed
+curl http://localhost:8080/api/v1/dev/accounts
+```
+
+### Flutter dev panel
+
+When running the app in **debug mode**, the sign-in screen shows a **Dev testing** section with **Load demo data** and quick-login buttons for each account.
+
+Dev endpoints are enabled in the `local` and `docker` Spring profiles only.
+
 ## Running the backend locally (no Docker)
 
 Start only Postgres from compose (the easiest option — no local install needed):

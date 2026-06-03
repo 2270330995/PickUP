@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../shared/providers/auth_provider.dart';
+import '../../dev/data/dev_api.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -111,11 +113,104 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : () => context.push(RoutePaths.register),
                   child: const Text('Create an account'),
                 ),
+                if (kDebugMode) ...[
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const _DevTestingPanel(),
+                ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DevTestingPanel extends ConsumerStatefulWidget {
+  const _DevTestingPanel();
+
+  @override
+  ConsumerState<_DevTestingPanel> createState() => _DevTestingPanelState();
+}
+
+class _DevTestingPanelState extends ConsumerState<_DevTestingPanel> {
+  bool _working = false;
+
+  Future<void> _seed() async {
+    setState(() => _working = true);
+    try {
+      await ref.read(devApiProvider).seed();
+      ref.invalidate(devAccountsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Demo data ready')),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _quickLogin(String email, String password) async {
+    setState(() => _working = true);
+    try {
+      await ref.read(authProvider.notifier).login(email, password);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accountsAsync = ref.watch(devAccountsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Dev testing', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(
+          'Load demo accounts with one tap. Password for all: test',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _working ? null : _seed,
+          icon: const Icon(Icons.auto_fix_high),
+          label: const Text('Load demo data'),
+        ),
+        const SizedBox(height: 12),
+        accountsAsync.when(
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => Text(
+            'Dev endpoints unavailable (enable pickup.dev.enabled on backend)',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          data: (accounts) => Column(
+            children: accounts
+                .map(
+                  (a) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton(
+                      onPressed: _working
+                          ? null
+                          : () => _quickLogin(a.email, a.password),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('${a.role}: ${a.fullName} (${a.email})'),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ],
     );
   }
 }

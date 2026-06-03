@@ -28,6 +28,10 @@ pickup:
       issuer: pickup-backend
   cors:
     allowed-origins: "*"
+  dev:
+    enabled: false
+    auto-seed: false
+    password: test
 
 management:
   endpoints:

@@ -1,11 +1,12 @@
 package com.pickup.event;
 
 import com.pickup.common.api.ApiResponse;
-import com.pickup.common.api.NotImplemented;
+import com.pickup.event.assignment.dto.AssignmentPlanResponse;
 import com.pickup.event.dto.CreateEventRequest;
 import com.pickup.event.dto.EventDashboardResponse;
 import com.pickup.event.dto.EventResponse;
 import com.pickup.event.dto.UpdateEventRequest;
+import com.pickup.event.planning.AutoAssignmentService;
 import com.pickup.security.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -28,9 +29,12 @@ import java.util.UUID;
 public class EventController {
 
     private final EventService eventService;
+    private final AutoAssignmentService autoAssignmentService;
 
-    public EventController(EventService eventService) {
+    public EventController(EventService eventService,
+                           AutoAssignmentService autoAssignmentService) {
         this.eventService = eventService;
+        this.autoAssignmentService = autoAssignmentService;
     }
 
     @PostMapping
@@ -97,9 +101,9 @@ public class EventController {
         return ApiResponse.ok(eventService.getEventDashboard(id));
     }
 
-    /** Planning track stub — algorithm lands in Phase 3+. */
     @PostMapping("/{id}/planning/generate-assignments")
-    public ApiResponse<Void> generateAssignments(@PathVariable UUID id) {
-        return NotImplemented.phase1("POST /api/v1/events/{id}/planning/generate-assignments");
+    public ApiResponse<AssignmentPlanResponse> generateAssignments(@PathVariable UUID id) {
+        return ApiResponse.ok(
+                autoAssignmentService.generate(CurrentUser.require().getId(), id));
     }
 }

@@ -10,6 +10,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+pickup:
+  dev:
+    enabled: true
+    auto-seed: true
+    password: test
+
 logging:
   level:
     org.hibernate.SQL: DEBUG

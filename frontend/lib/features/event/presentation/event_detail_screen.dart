@@ -10,6 +10,7 @@ import '../../assignment/data/assignment_api.dart';
 import '../../participant/data/participant_api.dart';
 import '../../participant/data/participant_dtos.dart';
 import '../../participant/presentation/pickup_address_sheet.dart';
+import '../../trip/data/trip_api.dart';
 import '../../trip/data/trip_dtos.dart';
 import '../../user/data/user_api.dart';
 import '../../vehicle/presentation/vehicle_picker_sheet.dart';
@@ -851,6 +852,30 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
     }
   }
 
+  Future<void> _autoAssign() async {
+    if (_working || widget.event.planningStatus == 'IN_PROGRESS') return;
+    setState(() => _working = true);
+    try {
+      final plan = await ref
+          .read(assignmentApiProvider)
+          .generateAssignments(widget.event.id);
+      ref.invalidate(eventAssignmentPlanProvider(widget.event.id));
+      ref.invalidate(eventParticipantsProvider(widget.event.id));
+      ref.invalidate(eventDashboardProvider(widget.event.id));
+      ref.invalidate(eventDetailProvider(widget.event.id));
+      ref.invalidate(myTripsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(plan.summaryMessage)),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final api = ref.read(eventApiProvider);
@@ -885,6 +910,14 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, children: [
               if (canManageAssignments) ...[
+                FilledButton.icon(
+                  icon: const Icon(Icons.auto_mode),
+                  label: const Text('Auto assign'),
+                  onPressed: _working ||
+                          widget.event.planningStatus == 'IN_PROGRESS'
+                      ? null
+                      : _autoAssign,
+                ),
                 FilledButton.icon(
                   icon: const Icon(Icons.alt_route),
                   label: const Text('Manage assignments'),
