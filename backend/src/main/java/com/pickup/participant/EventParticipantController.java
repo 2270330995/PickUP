@@ -89,6 +89,15 @@ public class EventParticipantController {
                 CurrentUser.require().getId(), eventId, participantId, request));
     }
 
+    /** Driver sets or updates their trip start location for this event. */
+    @PatchMapping("/{participantId}/trip-start")
+    public ApiResponse<EventParticipantResponse> setTripStart(@PathVariable UUID eventId,
+                                                              @PathVariable UUID participantId,
+                                                              @Valid @RequestBody UpdateParticipantPickupRequest request) {
+        return ApiResponse.ok(participantService.setTripStart(
+                CurrentUser.require().getId(), eventId, participantId, request));
+    }
+
     /**
      * Driver picks which of their own vehicles will be used for this event. Pass a
      * {@code null} {@code vehicleId} in the body to clear the selection (allowed only

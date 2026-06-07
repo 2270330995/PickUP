@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/router/route_paths.dart';
 import '../../dashboard/data/dashboard_api.dart';
+import '../../location/data/resolved_address.dart';
+import '../../location/presentation/address_autocomplete_field.dart';
 import '../data/event_api.dart';
 import '../data/event_dtos.dart';
 
@@ -19,9 +21,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
-  final _latCtrl = TextEditingController();
-  final _lngCtrl = TextEditingController();
+  ResolvedAddress? _destination;
   DateTime? _eventDateTime;
   bool _submitting = false;
 
@@ -29,9 +29,6 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _addressCtrl.dispose();
-    _latCtrl.dispose();
-    _lngCtrl.dispose();
     super.dispose();
   }
 
@@ -63,21 +60,26 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       );
       return;
     }
+    final destination = _destination;
+    if (destination == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a destination from the suggestions')),
+      );
+      return;
+    }
     setState(() => _submitting = true);
     try {
       final created = await ref.read(eventApiProvider).create(CreateEventRequest(
             title: _titleCtrl.text.trim(),
             description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-            destinationAddress: _addressCtrl.text.trim(),
-            destinationLat: double.parse(_latCtrl.text.trim()),
-            destinationLng: double.parse(_lngCtrl.text.trim()),
+            destinationAddress: destination.formattedAddress,
+            destinationLat: destination.lat,
+            destinationLng: destination.lng,
             eventTime: _eventDateTime!,
           ));
       ref.invalidate(myEventsProvider);
       ref.invalidate(organizerDashboardProvider);
       if (!mounted) return;
-      // Go to organizer dashboard first so the back stack is intact,
-      // then push the new event detail on top of it.
       context.go(RoutePaths.organizer);
       context.push(RoutePaths.eventDetailFor(created.id));
     } on ApiException catch (e) {
@@ -119,45 +121,13 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _addressCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Destination address',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Destination is required'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _latCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            signed: true, decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Latitude',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: _validateLatLng(-90, 90, 'lat'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _lngCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            signed: true, decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Longitude',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: _validateLatLng(-180, 180, 'lng'),
-                      ),
-                    ),
-                  ],
+                AddressAutocompleteField(
+                  initialValue: _destination,
+                  labelText: 'Destination address',
+                  helperText: 'Start typing, then pick a suggestion',
+                  onSelected: (value) => setState(() => _destination = value),
+                  validator: (value) =>
+                      value == null ? 'Select a destination from suggestions' : null,
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
@@ -186,15 +156,5 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
         ),
       ),
     );
-  }
-
-  String? Function(String?) _validateLatLng(double min, double max, String label) {
-    return (v) {
-      if (v == null || v.trim().isEmpty) return 'Required';
-      final parsed = double.tryParse(v.trim());
-      if (parsed == null) return 'Not a number';
-      if (parsed < min || parsed > max) return 'Out of range';
-      return null;
-    };
   }
 }

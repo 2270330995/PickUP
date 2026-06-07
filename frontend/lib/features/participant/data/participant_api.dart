@@ -96,6 +96,18 @@ class ParticipantApi {
         ));
   }
 
+  /// Driver sets or updates their trip start location for a specific event.
+  Future<EventParticipantResponse> setTripStart(
+    String eventId,
+    String participantId,
+    UpdateParticipantPickupRequest request,
+  ) {
+    return _call(() => _dio.patch<Map<String, dynamic>>(
+          '/events/$eventId/participants/$participantId/trip-start',
+          data: request.toJson(),
+        ));
+  }
+
   Future<EventParticipantResponse> _call(
     Future<Response<Map<String, dynamic>>> Function() call,
   ) async {

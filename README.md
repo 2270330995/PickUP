@@ -77,8 +77,8 @@ All accounts use password **`test`**:
 | Email | Role |
 |-------|------|
 | `john@test.com` | Organizer |
-| `jack@test.com` | Driver (Toyota Corolla) |
-| `jacob@test.com` | Driver (Honda Civic) |
+| `jack@test.com` | Driver (Toyota Corolla, trip start: Van Ness Ave) |
+| `jacob@test.com` | Driver (Honda Civic, trip start: Geary Blvd) |
 | `dell@test.com` | Passenger |
 | `james@test.com` | Passenger |
 | `emma@test.com` | Passenger |
@@ -86,7 +86,7 @@ All accounts use password **`test`**:
 | `olivia@test.com` | Passenger |
 | `liam@test.com` | Passenger |
 
-The demo event is **PickUP Demo Event** with pickup addresses and vehicles already set up.
+The demo event is **PickUP Demo Event** with destination, passenger pickup addresses, driver trip start locations, and vehicles already set up.
 
 ### Manual seed / refresh demo
 

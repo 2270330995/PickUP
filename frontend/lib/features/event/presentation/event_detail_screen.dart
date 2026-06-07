@@ -9,6 +9,9 @@ import '../../dashboard/data/dashboard_dtos.dart';
 import '../../assignment/data/assignment_api.dart';
 import '../../participant/data/participant_api.dart';
 import '../../participant/data/participant_dtos.dart';
+import '../../location/data/resolved_address.dart';
+import '../../location/presentation/address_autocomplete_field.dart';
+import '../../location/presentation/location_picker_sheet.dart';
 import '../../participant/presentation/pickup_address_sheet.dart';
 import '../../trip/data/trip_api.dart';
 import '../../trip/data/trip_dtos.dart';
@@ -75,7 +78,7 @@ class _EventDetailBody extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _Header(event: event),
+            _Header(event: event, isOrganizer: isOrganizer),
             const SizedBox(height: 16),
             participantsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -185,12 +188,51 @@ class _EventDetailBody extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.event});
+class _Header extends ConsumerWidget {
+  const _Header({required this.event, required this.isOrganizer});
   final EventResponse event;
+  final bool isOrganizer;
+
+  bool get _canEditDestination =>
+      isOrganizer &&
+      (event.status == EventStatus.draft ||
+          event.status == EventStatus.open ||
+          event.status == EventStatus.closed);
+
+  Future<void> _editDestination(BuildContext context, WidgetRef ref) async {
+    final result = await showLocationPickerSheet(
+      context,
+      title: 'Event destination',
+      subtitle: 'Where is everyone heading?',
+      fieldLabel: 'Destination address',
+      currentAddress: event.destinationAddress,
+      currentLat: event.destinationLat,
+      currentLng: event.destinationLng,
+      confirmLabel: 'Save destination',
+    );
+    if (result == null || !context.mounted) return;
+    try {
+      await ref.read(eventApiProvider).update(
+            event.id,
+            UpdateEventRequest(
+              destinationAddress: result.formattedAddress,
+              destinationLat: result.lat,
+              destinationLng: result.lng,
+            ),
+          );
+      ref.invalidate(eventDetailProvider(event.id));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Destination updated')),
+      );
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final myStatus = event.currentUserParticipantStatus;
     final myRole = event.currentUserParticipantRole;
@@ -221,6 +263,12 @@ class _Header extends StatelessWidget {
               const Icon(Icons.location_on_outlined, size: 18),
               const SizedBox(width: 8),
               Expanded(child: Text(event.destinationAddress)),
+              if (_canEditDestination)
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Edit destination',
+                  onPressed: () => _editDestination(context, ref),
+                ),
             ]),
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 4, children: [
@@ -345,41 +393,27 @@ class _JoinCard extends ConsumerStatefulWidget {
 class _JoinCardState extends ConsumerState<_JoinCard> {
   ParticipantRole _role = ParticipantRole.passenger;
   bool _submitting = false;
-  final _addressCtrl = TextEditingController();
-  final _latCtrl = TextEditingController();
-  final _lngCtrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _addressCtrl.dispose();
-    _latCtrl.dispose();
-    _lngCtrl.dispose();
-    super.dispose();
-  }
+  ResolvedAddress? _pickupLocation;
 
   bool get _needsPickup => _role == ParticipantRole.passenger;
 
   Future<void> _join() async {
-    if (_needsPickup) {
-      final address = _addressCtrl.text.trim();
-      final lat = double.tryParse(_latCtrl.text.trim());
-      final lng = double.tryParse(_lngCtrl.text.trim());
-      if (address.isEmpty || lat == null || lng == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter your pickup address and coordinates')),
-        );
-        return;
-      }
+    if (_needsPickup && _pickupLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select your pickup address from suggestions')),
+      );
+      return;
     }
     setState(() => _submitting = true);
     try {
+      final pickup = _pickupLocation;
       await ref.read(participantApiProvider).selfJoin(
             widget.eventId,
             JoinEventRequest(
               role: _role,
-              pickupAddress: _needsPickup ? _addressCtrl.text.trim() : null,
-              pickupLat: _needsPickup ? double.parse(_latCtrl.text.trim()) : null,
-              pickupLng: _needsPickup ? double.parse(_lngCtrl.text.trim()) : null,
+              pickupAddress: _needsPickup ? pickup!.formattedAddress : null,
+              pickupLat: _needsPickup ? pickup!.lat : null,
+              pickupLng: _needsPickup ? pickup!.lng : null,
             ),
           );
       _refreshAll();
@@ -430,41 +464,10 @@ class _JoinCardState extends ConsumerState<_JoinCard> {
             ),
             if (_needsPickup) ...[
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _addressCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Pickup address',
-                  border: OutlineInputBorder(),
-                ),
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _latCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          signed: true, decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Latitude',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _lngCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          signed: true, decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Longitude',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
+              AddressAutocompleteField(
+                labelText: 'Pickup address',
+                helperText: 'Start typing, then pick a suggestion',
+                onSelected: (value) => setState(() => _pickupLocation = value),
               ),
             ],
             const SizedBox(height: 12),
@@ -559,6 +562,29 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
     );
   }
 
+  Future<void> _editTripStart() async {
+    final p = widget.participant;
+    final result = await showTripStartAddressSheet(
+      context,
+      currentAddress: p.pickupAddress,
+      currentLat: p.pickupLat,
+      currentLng: p.pickupLng,
+    );
+    if (result == null || !mounted) return;
+    await _act(
+      () => ref.read(participantApiProvider).setTripStart(
+            widget.eventId,
+            p.id,
+            UpdateParticipantPickupRequest(
+              pickupAddress: result.pickupAddress,
+              pickupLat: result.pickupLat,
+              pickupLng: result.pickupLng,
+            ),
+          ).then((_) {}),
+      'Trip start location saved',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.participant;
@@ -578,7 +604,12 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
         (p.status == ParticipantStatus.requested ||
             p.status == ParticipantStatus.approved ||
             p.status == ParticipantStatus.confirmed);
+    final canEditTripStart = isDriver &&
+        (p.status == ParticipantStatus.requested ||
+            p.status == ParticipantStatus.approved ||
+            p.status == ParticipantStatus.confirmed);
     final hasPickup = p.pickupAddress != null && p.pickupAddress!.isNotEmpty;
+    final hasTripStart = hasPickup;
 
     return Card(
       child: Padding(
@@ -598,6 +629,13 @@ class _MyParticipationCardState extends ConsumerState<_MyParticipationCard> {
                 participant: p,
                 onPick: _working ? null : _pickVehicle,
                 canEdit: canEditVehicle,
+              ),
+              const SizedBox(height: 12),
+              _DriverTripStartRow(
+                participant: p,
+                onEdit: _working ? null : _editTripStart,
+                canEdit: canEditTripStart,
+                hasTripStart: hasTripStart,
               ),
             ],
             if (isPassenger) ...[
@@ -769,6 +807,67 @@ class _DriverVehicleRow extends StatelessWidget {
   }
 }
 
+class _DriverTripStartRow extends StatelessWidget {
+  const _DriverTripStartRow({
+    required this.participant,
+    required this.onEdit,
+    required this.canEdit,
+    required this.hasTripStart,
+  });
+
+  final EventParticipantResponse participant;
+  final VoidCallback? onEdit;
+  final bool canEdit;
+  final bool hasTripStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.trip_origin),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasTripStart
+                      ? participant.pickupAddress!
+                      : 'No trip start location',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                Text(
+                  'Where you begin the pickup route',
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (!hasTripStart && canEdit)
+                  Text(
+                    'Recommended for better stop ordering during auto-assign',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (canEdit)
+            TextButton(
+              onPressed: onEdit,
+              child: Text(hasTripStart ? 'Change' : 'Set'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PassengerPickupRow extends StatelessWidget {
   const _PassengerPickupRow({
     required this.participant,
@@ -866,7 +965,7 @@ class _OrganizerActionsState extends ConsumerState<_OrganizerActions> {
       ref.invalidate(myTripsProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(plan.summaryMessage)),
+        SnackBar(content: Text(plan.autoAssignSummaryMessage)),
       );
     } on ApiException catch (e) {
       if (!mounted) return;

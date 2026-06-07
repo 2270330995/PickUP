@@ -6,6 +6,7 @@ import com.pickup.common.enums.ParticipantStatus;
 import com.pickup.common.exception.ConflictException;
 import com.pickup.common.exception.ForbiddenException;
 import com.pickup.common.exception.NotFoundException;
+import com.pickup.common.geo.GeoLocationValidator;
 import com.pickup.event.EventEntity;
 import com.pickup.event.EventService;
 import com.pickup.participant.dto.EventParticipantResponse;
@@ -34,6 +35,9 @@ public class EventParticipantService {
     /** Statuses in which a driver may attach or change their vehicle for an event. */
     private static final Set<ParticipantStatus> VEHICLE_EDITABLE_STATES =
             EnumSet.of(ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED, ParticipantStatus.ASSIGNED);
+    /** Statuses in which a driver may set or change their trip start location. */
+    private static final Set<ParticipantStatus> TRIP_START_EDITABLE_STATES =
+            EnumSet.of(ParticipantStatus.REQUESTED, ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED);
     /** Statuses in which a passenger may set or change their pickup location. */
     private static final Set<ParticipantStatus> PICKUP_EDITABLE_STATES =
             EnumSet.of(ParticipantStatus.REQUESTED, ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED);
@@ -71,6 +75,12 @@ public class EventParticipantService {
         }
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> NotFoundException.of("User", userId));
+
+        GeoLocationValidator.requireCompleteOrAbsent(
+                request.pickupAddress(),
+                request.pickupLat(),
+                request.pickupLng(),
+                "Location");
 
         EventParticipantEntity participant = EventParticipantEntity.builder()
                 .event(event)
@@ -186,6 +196,45 @@ public class EventParticipantService {
                     "Pickup location can only be set in status " + PICKUP_EDITABLE_STATES
                             + " (current: " + participant.getStatus() + ")");
         }
+        GeoLocationValidator.requireComplete(
+                request.pickupAddress(),
+                request.pickupLat(),
+                request.pickupLng(),
+                "Pickup");
+        participant.setPickupAddress(request.pickupAddress().trim());
+        participant.setPickupLat(request.pickupLat());
+        participant.setPickupLng(request.pickupLng());
+        return mapper.toResponse(participant);
+    }
+
+    /**
+     * Driver sets (or updates) their trip start location for a specific event.
+     *
+     * <p>For {@code DRIVER} participants, {@code pickupLat/Lng} is the route anchor
+     * before the first passenger stop (Phase 4B convention).
+     */
+    @Transactional
+    public EventParticipantResponse setTripStart(UUID currentUserId,
+                                                 UUID eventId,
+                                                 UUID participantId,
+                                                 UpdateParticipantPickupRequest request) {
+        EventParticipantEntity participant = loadParticipant(eventId, participantId);
+        requireParticipantOwner(participant, currentUserId);
+        if (participant.getRole() != ParticipantRole.DRIVER) {
+            throw new ConflictException(
+                    "Only DRIVER participants may set a trip start location (current role: "
+                            + participant.getRole() + ")");
+        }
+        if (!TRIP_START_EDITABLE_STATES.contains(participant.getStatus())) {
+            throw new ConflictException(
+                    "Trip start location can only be set in status " + TRIP_START_EDITABLE_STATES
+                            + " (current: " + participant.getStatus() + ")");
+        }
+        GeoLocationValidator.requireComplete(
+                request.pickupAddress(),
+                request.pickupLat(),
+                request.pickupLng(),
+                "Trip start");
         participant.setPickupAddress(request.pickupAddress().trim());
         participant.setPickupLat(request.pickupLat());
         participant.setPickupLng(request.pickupLng());

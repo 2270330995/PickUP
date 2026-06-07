@@ -1,6 +1,7 @@
 package com.pickup.event;
 
 import com.pickup.common.enums.EventStatus;
+import com.pickup.common.geo.GeoLocationValidator;
 import com.pickup.common.enums.ParticipantRole;
 import com.pickup.common.enums.ParticipantStatus;
 import com.pickup.common.exception.ConflictException;
@@ -78,6 +79,12 @@ public class EventService {
     public EventResponse createEvent(UUID organizerId, CreateEventRequest request) {
         UserEntity organizer = userRepository.findById(organizerId)
                 .orElseThrow(() -> NotFoundException.of("User", organizerId));
+
+        GeoLocationValidator.requireComplete(
+                request.destinationAddress(),
+                request.destinationLat(),
+                request.destinationLng(),
+                "Destination");
 
         EventEntity event = EventEntity.builder()
                 .organizer(organizer)
@@ -167,6 +174,9 @@ public class EventService {
         if (request.description() != null) {
             event.setDescription(request.description());
         }
+        boolean destinationTouched = request.destinationAddress() != null
+                || request.destinationLat() != null
+                || request.destinationLng() != null;
         if (request.destinationAddress() != null && !request.destinationAddress().isBlank()) {
             event.setDestinationAddress(request.destinationAddress().trim());
         }
@@ -175,6 +185,13 @@ public class EventService {
         }
         if (request.destinationLng() != null) {
             event.setDestinationLng(request.destinationLng());
+        }
+        if (destinationTouched) {
+            GeoLocationValidator.requireComplete(
+                    event.getDestinationAddress(),
+                    event.getDestinationLat(),
+                    event.getDestinationLng(),
+                    "Destination");
         }
         if (request.eventTime() != null) {
             event.setEventTime(request.eventTime());
