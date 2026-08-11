@@ -21,6 +21,11 @@ class OrganizerDashboardScreen extends ConsumerWidget {
         title: const Text('Pick Up!'),
         actions: [
           IconButton(
+            tooltip: 'People',
+            icon: const Icon(Icons.people_outline),
+            onPressed: () => context.push(RoutePaths.people),
+          ),
+          IconButton(
             tooltip: 'Browse events',
             icon: const Icon(Icons.travel_explore),
             onPressed: () => context.push(RoutePaths.browseEvents),
@@ -233,6 +238,7 @@ _StatusColors _statusColors(ThemeData theme, ParticipantStatus? status) {
   final scheme = theme.colorScheme;
   switch (status) {
     case ParticipantStatus.confirmed:
+    case ParticipantStatus.ready:
     case ParticipantStatus.checkedIn:
     case ParticipantStatus.pickedUp:
     case ParticipantStatus.arrived:

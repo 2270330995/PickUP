@@ -1,8 +1,11 @@
 package com.pickup.participant;
 
 import com.pickup.common.api.ApiResponse;
+import com.pickup.participant.dto.AddContactParticipantRequest;
+import com.pickup.participant.dto.AddContactsFromRosterRequest;
 import com.pickup.participant.dto.EventParticipantResponse;
 import com.pickup.participant.dto.JoinEventRequest;
+import com.pickup.participant.dto.OrganizerUpdateParticipantRequest;
 import com.pickup.participant.dto.UpdateParticipantPickupRequest;
 import com.pickup.participant.dto.UpdateParticipantVehicleRequest;
 import com.pickup.security.CurrentUser;
@@ -43,6 +46,35 @@ public class EventParticipantController {
     public ApiResponse<List<EventParticipantResponse>> list(@PathVariable UUID eventId) {
         CurrentUser.require();
         return ApiResponse.ok(participantService.listForEvent(eventId));
+    }
+
+    /** Organizer-only: add a single Contact from the People roster as a READY participant. */
+    @PostMapping("/from-contact")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<EventParticipantResponse> addFromContact(@PathVariable UUID eventId,
+                                                                @Valid @RequestBody AddContactParticipantRequest request) {
+        return ApiResponse.ok(
+                participantService.addFromContact(CurrentUser.require().getId(), eventId, request));
+    }
+
+    /** Organizer-only: add multiple Contacts atomically (all-or-nothing). */
+    @PostMapping("/from-contacts")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<List<EventParticipantResponse>> addFromContacts(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody AddContactsFromRosterRequest request) {
+        return ApiResponse.ok(
+                participantService.addFromContacts(CurrentUser.require().getId(), eventId, request));
+    }
+
+    /** Organizer-only: edit a participant's per-event role and pickup location. */
+    @PatchMapping("/{participantId}")
+    public ApiResponse<EventParticipantResponse> organizerUpdate(
+            @PathVariable UUID eventId,
+            @PathVariable UUID participantId,
+            @Valid @RequestBody OrganizerUpdateParticipantRequest request) {
+        return ApiResponse.ok(participantService.organizerUpdate(
+                CurrentUser.require().getId(), eventId, participantId, request));
     }
 
     /** Organizer-only: REQUESTED -> APPROVED. */
@@ -111,7 +143,7 @@ public class EventParticipantController {
                 CurrentUser.require().getId(), eventId, participantId, request));
     }
 
-    /** Organizer-only: hard delete participant row. */
+    /** Organizer-only: soft-remove (sets status CANCELLED; row is preserved for history). */
     @DeleteMapping("/{participantId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remove(@PathVariable UUID eventId, @PathVariable UUID participantId) {

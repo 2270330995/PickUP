@@ -10,9 +10,7 @@ import java.util.UUID;
 @Repository
 public interface VehicleRepository extends JpaRepository<VehicleEntity, UUID> {
 
-    List<VehicleEntity> findAllByOwnerIdOrderByCreatedAtAsc(UUID ownerId);
+    List<VehicleEntity> findAllByContactIdOrderByCreatedAtAsc(UUID contactId);
 
-    List<VehicleEntity> findAllByOwnerId(UUID ownerId);
-
-    Optional<VehicleEntity> findByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<VehicleEntity> findByIdAndContactId(UUID id, UUID contactId);
 }

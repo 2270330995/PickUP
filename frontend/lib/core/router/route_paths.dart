@@ -10,6 +10,12 @@ class RoutePaths {
   static const createEvent = '/events/new';
   static const eventDetail = '/events/:id';
 
+  // Phase 4D-1 — People (Contact) roster
+  static const people = '/people';
+  static const peopleNew = '/people/new';
+  static const peopleDetail = '/people/:id';
+  static const peopleEdit = '/people/:id/edit';
+
   // Phase 3A — manual trips
   static const vehicles = '/vehicles';
   static const vehicleNew = '/vehicles/new';
@@ -23,6 +29,8 @@ class RoutePaths {
   static const tripMonitor = '/trips/:tripId/monitor';
 
   static String eventDetailFor(String eventId) => '/events/$eventId';
+  static String peopleDetailFor(String contactId) => '/people/$contactId';
+  static String peopleEditFor(String contactId) => '/people/$contactId/edit';
   static String driverTripFor(String tripId) => '/driver/trips/$tripId';
   static String passengerRideFor(String tripId) => '/passenger/rides/$tripId';
   static String tripMonitorFor(String tripId) => '/trips/$tripId/monitor';

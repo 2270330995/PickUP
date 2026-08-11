@@ -20,6 +20,7 @@ public record TripResponse(
         Instant eventTime,
         UUID driverId,
         String driverFullName,
+        UUID driverParticipantId,
         UUID vehicleId,
         VehicleSummary vehicleSummary,
         TripStatus status,

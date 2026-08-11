@@ -51,6 +51,7 @@ enum ParticipantStatus {
   approved,
   rejected,
   confirmed,
+  ready,
   assigned,
   checkedIn,
   pickedUp,
@@ -72,6 +73,8 @@ ParticipantStatus participantStatusFromString(String? raw) {
       return ParticipantStatus.rejected;
     case 'CONFIRMED':
       return ParticipantStatus.confirmed;
+    case 'READY':
+      return ParticipantStatus.ready;
     case 'ASSIGNED':
       return ParticipantStatus.assigned;
     case 'CHECKED_IN':
@@ -101,6 +104,8 @@ String participantStatusLabel(ParticipantStatus s) {
       return 'Rejected';
     case ParticipantStatus.confirmed:
       return 'Confirmed';
+    case ParticipantStatus.ready:
+      return 'Ready';
     case ParticipantStatus.assigned:
       return 'Assigned';
     case ParticipantStatus.checkedIn:
@@ -122,7 +127,10 @@ class EventParticipantResponse {
   const EventParticipantResponse({
     required this.id,
     required this.eventId,
-    required this.userId,
+    this.userId,
+    this.contactId,
+    required this.displayName,
+    this.displayEmail,
     required this.userFullName,
     required this.userEmail,
     required this.role,
@@ -139,7 +147,12 @@ class EventParticipantResponse {
 
   final String id;
   final String eventId;
-  final String userId;
+  /// Set for legacy self-joined participants; null for Contact-backed rows.
+  final String? userId;
+  /// Set for organizer-added participants; null for legacy self-joins.
+  final String? contactId;
+  final String displayName;
+  final String? displayEmail;
   final String userFullName;
   final String userEmail;
   final ParticipantRole role;
@@ -153,6 +166,13 @@ class EventParticipantResponse {
   final ParticipantVehicleSummary? vehicleSummary;
   final DateTime createdAt;
 
+  bool get isContactBacked => contactId != null;
+
+  /// Best available display name regardless of whether this row is backed by
+  /// a Contact or a registered user.
+  String get displayLabel =>
+      displayName.isNotEmpty ? displayName : userFullName;
+
   factory EventParticipantResponse.fromJson(Map<String, dynamic> json) {
     final roleRaw = json['role'] as String? ?? 'UNKNOWN';
     final statusRaw = json['status'] as String? ?? 'UNKNOWN';
@@ -160,7 +180,10 @@ class EventParticipantResponse {
     return EventParticipantResponse(
       id: json['id'] as String,
       eventId: json['eventId'] as String,
-      userId: json['userId'] as String,
+      userId: json['userId'] as String?,
+      contactId: json['contactId'] as String?,
+      displayName: json['displayName'] as String? ?? '',
+      displayEmail: json['displayEmail'] as String?,
       userFullName: json['userFullName'] as String? ?? '',
       userEmail: json['userEmail'] as String? ?? '',
       role: participantRoleFromString(roleRaw),
@@ -257,6 +280,70 @@ class JoinEventRequest {
         'role': participantRoleToString(role),
         if (pickupAddress != null && pickupAddress!.isNotEmpty)
           'pickupAddress': pickupAddress,
+        if (pickupLat != null) 'pickupLat': pickupLat,
+        if (pickupLng != null) 'pickupLng': pickupLng,
+      };
+}
+
+/// Organizer payload adding a single Contact to an event. When pickup fields
+/// are omitted, the backend copies the contact's default location (if any).
+class AddContactParticipantRequest {
+  const AddContactParticipantRequest({
+    required this.contactId,
+    required this.role,
+    this.vehicleId,
+    this.pickupAddress,
+    this.pickupLat,
+    this.pickupLng,
+  });
+
+  final String contactId;
+  final ParticipantRole role;
+  final String? vehicleId;
+  final String? pickupAddress;
+  final double? pickupLat;
+  final double? pickupLng;
+
+  Map<String, dynamic> toJson() => {
+        'contactId': contactId,
+        'role': participantRoleToString(role),
+        if (vehicleId != null) 'vehicleId': vehicleId,
+        if (pickupAddress != null && pickupAddress!.isNotEmpty)
+          'pickupAddress': pickupAddress,
+        if (pickupLat != null) 'pickupLat': pickupLat,
+        if (pickupLng != null) 'pickupLng': pickupLng,
+      };
+}
+
+/// Bulk add payload. The backend processes all entries atomically.
+class AddContactsFromRosterRequest {
+  const AddContactsFromRosterRequest({required this.entries});
+
+  final List<AddContactParticipantRequest> entries;
+
+  Map<String, dynamic> toJson() => {
+        'entries': entries.map((e) => e.toJson()).toList(),
+      };
+}
+
+/// Organizer edit of a participant's per-event role and pickup location.
+/// Omitted (null) fields are left unchanged on the server.
+class OrganizerUpdateParticipantRequest {
+  const OrganizerUpdateParticipantRequest({
+    this.role,
+    this.pickupAddress,
+    this.pickupLat,
+    this.pickupLng,
+  });
+
+  final ParticipantRole? role;
+  final String? pickupAddress;
+  final double? pickupLat;
+  final double? pickupLng;
+
+  Map<String, dynamic> toJson() => {
+        if (role != null) 'role': participantRoleToString(role!),
+        if (pickupAddress != null) 'pickupAddress': pickupAddress,
         if (pickupLat != null) 'pickupLat': pickupLat,
         if (pickupLng != null) 'pickupLng': pickupLng,
       };

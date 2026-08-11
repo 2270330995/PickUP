@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.pickup.common.domain.BaseEntity;
 import com.pickup.common.enums.TripStatus;
 import com.pickup.event.EventEntity;
+import com.pickup.participant.EventParticipantEntity;
 import com.pickup.tripstop.TripStopEntity;
 import com.pickup.user.UserEntity;
 import com.pickup.vehicle.VehicleEntity;
@@ -52,10 +53,21 @@ public class TripEntity extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_trips_event"))
     private EventEntity event;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "driver_id", nullable = false,
+    /** Set for legacy trips whose driver is a registered user; null for Contact-backed drivers. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_id",
             foreignKey = @ForeignKey(name = "fk_trips_driver"))
     private UserEntity driver;
+
+    /**
+     * The driver's {@code EventParticipant} row for this trip. Always set for trips
+     * created since Phase 4D-2; legacy trips created before then may have this null
+     * with only {@link #driver} populated.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_participant_id",
+            foreignKey = @ForeignKey(name = "fk_trips_driver_participant"))
+    private EventParticipantEntity driverParticipant;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "vehicle_id", nullable = false,

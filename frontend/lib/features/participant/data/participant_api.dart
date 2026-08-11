@@ -33,6 +33,52 @@ class ParticipantApi {
         ));
   }
 
+  /// Organizer-only: add a single Contact from the People roster as a READY participant.
+  Future<EventParticipantResponse> addFromContact(
+    String eventId,
+    AddContactParticipantRequest req,
+  ) {
+    return _call(() => _dio.post<Map<String, dynamic>>(
+          '/events/$eventId/participants/from-contact',
+          data: req.toJson(),
+        ));
+  }
+
+  /// Organizer-only: add multiple Contacts atomically (all-or-nothing).
+  Future<List<EventParticipantResponse>> addFromContacts(
+    String eventId,
+    AddContactsFromRosterRequest req,
+  ) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/events/$eventId/participants/from-contacts',
+        data: req.toJson(),
+      );
+      final envelope = ApiResponse<List<EventParticipantResponse>>.fromJson(
+        res.data!,
+        (raw) => (raw as List)
+            .whereType<Map<String, dynamic>>()
+            .map(EventParticipantResponse.fromJson)
+            .toList(growable: false),
+      );
+      return envelope.data ?? const [];
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Organizer-only: edit a participant's per-event role and pickup location.
+  Future<EventParticipantResponse> organizerUpdate(
+    String eventId,
+    String participantId,
+    OrganizerUpdateParticipantRequest req,
+  ) {
+    return _call(() => _dio.patch<Map<String, dynamic>>(
+          '/events/$eventId/participants/$participantId',
+          data: req.toJson(),
+        ));
+  }
+
   Future<EventParticipantResponse> approve(String eventId, String participantId) {
     return _call(() => _dio.post<Map<String, dynamic>>(
           '/events/$eventId/participants/$participantId/approve',

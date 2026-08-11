@@ -10,6 +10,10 @@ import '../../features/event/presentation/create_event_screen.dart';
 import '../../features/event/presentation/event_detail_screen.dart';
 import '../../features/organizer/presentation/organizer_dashboard_screen.dart';
 import '../../features/passenger/presentation/passenger_ride_screen.dart';
+import '../../features/people/data/contact_dtos.dart';
+import '../../features/people/presentation/contact_detail_screen.dart';
+import '../../features/people/presentation/contact_form_screen.dart';
+import '../../features/people/presentation/people_list_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/trip/presentation/event_trips_screen.dart';
@@ -78,6 +82,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => EventDetailScreen(
           eventId: state.pathParameters['id']!,
         ),
+      ),
+      GoRoute(
+        path: RoutePaths.people,
+        builder: (_, __) => const PeopleListScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.peopleNew,
+        builder: (_, __) => const ContactFormScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.peopleDetail,
+        builder: (_, state) => ContactDetailScreen(
+          contactId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.peopleEdit,
+        // The detail screen passes the existing ContactResponse via extra so the
+        // form pre-populates without a second round-trip; deep links fall back
+        // to a fresh-add form.
+        builder: (_, state) {
+          final extra = state.extra;
+          return ContactFormScreen(
+            existing: extra is ContactResponse ? extra : null,
+          );
+        },
       ),
       GoRoute(
         path: RoutePaths.vehicles,

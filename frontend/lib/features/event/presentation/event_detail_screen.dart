@@ -19,6 +19,8 @@ import '../../user/data/user_api.dart';
 import '../../vehicle/presentation/vehicle_picker_sheet.dart';
 import '../data/event_api.dart';
 import '../data/event_dtos.dart';
+import 'add_from_people_sheet.dart';
+import 'organizer_participant_edit_sheet.dart';
 
 class EventDetailScreen extends ConsumerWidget {
   const EventDetailScreen({super.key, required this.eventId});
@@ -126,8 +128,35 @@ class _EventDetailBody extends ConsumerWidget {
                               _canViewEventTrips(myParticipant.status))
                             _EventTripsLink(eventId: event.id),
                           const SizedBox(height: 24),
-                          Text('Participants (${active.length})',
-                              style: Theme.of(context).textTheme.titleMedium),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text('Participants (${active.length})',
+                                    style: Theme.of(context).textTheme.titleMedium),
+                              ),
+                              if (isOrganizer)
+                                TextButton.icon(
+                                  icon: const Icon(Icons.person_add_alt_1_outlined),
+                                  label: const Text('Add from People'),
+                                  onPressed: () async {
+                                    final activeContactIds = participants
+                                        .where((p) => p.contactId != null)
+                                        .where((p) => !inactive.contains(p.status))
+                                        .map((p) => p.contactId!)
+                                        .toSet();
+                                    final added = await showAddFromPeopleSheet(
+                                      context,
+                                      eventId: event.id,
+                                      alreadyActiveContactIds: activeContactIds,
+                                    );
+                                    if (added == true) {
+                                      ref.invalidate(eventParticipantsProvider(event.id));
+                                      ref.invalidate(eventDashboardProvider(event.id));
+                                    }
+                                  },
+                                ),
+                            ],
+                          ),
                           const SizedBox(height: 8),
                           if (active.isEmpty)
                             const Padding(
@@ -177,6 +206,7 @@ class _EventDetailBody extends ConsumerWidget {
       id: '',
       eventId: event.id,
       userId: '',
+      displayName: '',
       userFullName: '',
       userEmail: '',
       role: ParticipantRole.unknown,
@@ -308,6 +338,7 @@ _HeaderStatusColors _headerStatusColors(ThemeData theme, ParticipantStatus? stat
   final scheme = theme.colorScheme;
   switch (status) {
     case ParticipantStatus.confirmed:
+    case ParticipantStatus.ready:
     case ParticipantStatus.checkedIn:
     case ParticipantStatus.pickedUp:
     case ParticipantStatus.arrived:
@@ -1164,6 +1195,22 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
     }
   }
 
+  static const _organizerEditableStatuses = {
+    ParticipantStatus.ready,
+    ParticipantStatus.requested,
+    ParticipantStatus.approved,
+    ParticipantStatus.confirmed,
+  };
+
+  Future<void> _edit() async {
+    final saved = await showOrganizerParticipantEditSheet(
+      context,
+      eventId: widget.event.id,
+      participant: widget.participant,
+    );
+    if (saved == true) _refreshAll();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.participant;
@@ -1173,16 +1220,29 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
     final canRemove = widget.isOrganizer &&
         p.role != ParticipantRole.organizer &&
         (p.status == ParticipantStatus.approved ||
-            p.status == ParticipantStatus.confirmed);
+            p.status == ParticipantStatus.confirmed ||
+            p.status == ParticipantStatus.ready);
+    final canEdit = widget.isOrganizer &&
+        p.role != ParticipantRole.organizer &&
+        _organizerEditableStatuses.contains(p.status);
     final canRejoin = p.userId == widget.currentUserId &&
         p.status == ParticipantStatus.cancelled &&
         widget.event.status == EventStatus.open;
+    final needsVehicle = p.role == ParticipantRole.driver &&
+        p.vehicleSummary == null &&
+        p.status != ParticipantStatus.cancelled;
 
     return Card(
       child: ListTile(
-        title: Text(p.userFullName.isEmpty ? p.userEmail : p.userFullName),
+        title: Text(p.displayLabel.isEmpty ? p.userEmail : p.displayLabel),
         subtitle: Text(
-          '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)}',
+          needsVehicle
+              ? '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)} · '
+                  'Vehicle required before assignment'
+              : '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)}',
+          style: needsVehicle
+              ? TextStyle(color: Theme.of(context).colorScheme.error)
+              : null,
         ),
         trailing: (!widget.isOrganizer && !canRejoin)
             ? null
@@ -1210,6 +1270,12 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
                                 () => api.reject(widget.event.id, p.id).then((_) {}),
                                 'Rejected',
                               ),
+                    ),
+                  if (canEdit)
+                    IconButton(
+                      tooltip: 'Edit',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: _working ? null : _edit,
                     ),
                   if (canRemove)
                     IconButton(

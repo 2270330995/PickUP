@@ -70,23 +70,34 @@ For local/docker development, the backend can auto-create a full test scenario s
 
 **On a fresh database** (`docker compose down -v && docker compose up --build`), demo data is seeded automatically on startup.
 
-### Demo accounts
+### Demo account
 
-All accounts use password **`test`**:
+PickUP is now an **organizer-first** tool (Phase 4D-1): there is a single login, and drivers/passengers are reusable **People (Contacts)** owned by that organizer rather than separate user accounts.
 
 | Email | Role |
 |-------|------|
-| `john@test.com` | Organizer |
-| `jack@test.com` | Driver (Toyota Corolla, trip start: Van Ness Ave) |
-| `jacob@test.com` | Driver (Honda Civic, trip start: Geary Blvd) |
-| `dell@test.com` | Passenger |
-| `james@test.com` | Passenger |
-| `emma@test.com` | Passenger |
-| `noah@test.com` | Passenger |
-| `olivia@test.com` | Passenger |
-| `liam@test.com` | Passenger |
+| `john@test.com` | Organizer (password **`test`**) |
 
-The demo event is **PickUP Demo Event** with destination, passenger pickup addresses, driver trip start locations, and vehicles already set up.
+Signing in as John seeds a People roster you can browse under **People**:
+
+| Contact | Preferred role | Vehicle |
+|---------|-----------------|---------|
+| Jack | Driver | Toyota Corolla (default start: Van Ness Ave) |
+| Jacob | Driver | Honda Civic (default start: Geary Blvd) |
+| Dell, James, Emma, Noah, Olivia, Liam | Passenger | Default pickup address set |
+
+A **PickUP Demo Event** is also created for John to organize, with all 8 Contacts already added as **READY** participants (Phase 4D-2) — drivers carry their seeded vehicle, passengers carry their default pickup address — so you can jump straight to **Assign** and generate trips without walking through the "Add from People" flow first.
+
+### People → Event → Assign (Phase 4D-2)
+
+Organizers add participants to an event straight from their People roster instead of waiting for self-service join requests:
+
+1. **People** — maintain a reusable roster of Contacts (with default pickup address / vehicle) under **People**.
+2. **Add to Event** — from an event's Participants section, use **Add from People** to multi-select Contacts, assign each a per-event role, and (for drivers) pick a vehicle. They land as **READY** immediately — no approval step.
+3. **Assign** — run manual or auto-assignment as usual; READY participants are eligible alongside legacy CONFIRMED self-joins. A DRIVER may be added without a vehicle, but assignment rejects them until one is set (the event screen shows a "vehicle required" warning).
+4. **Trips** — generated trips show the Contact's name even though it has no user login; driver-facing execution/authentication for Contact-only drivers is deferred to a later phase, so organizers monitor these trips instead.
+
+Editing a Contact-backed participant's per-event role, pickup, or vehicle from the event screen never writes back to the underlying Contact — those changes stay local to that event.
 
 ### Manual seed / refresh demo
 
@@ -163,4 +174,14 @@ flutter run --dart-define=PICKUP_API_BASE_URL=http://localhost:8080
 - Firebase Cloud Messaging wiring.
 - Chat system.
 - State-machine transitions between `ParticipantStatus` / `TripStatus` / `StopStatus`.
-- Database migrations (Hibernate `ddl-auto=update` until Phase 2 introduces Flyway).
+- Database migrations (Hibernate `ddl-auto=update` until Phase 4D-1 introduced Flyway; see below).
+
+## Database migrations (Flyway)
+
+Since Phase 4D-1, schema changes are managed by **Flyway** (`spring.jpa.hibernate.ddl-auto: validate`) with migrations in `backend/src/main/resources/db/migration`. Phase 4D-2 adds `V2__event_participants_contacts.sql`, which makes `event_participants.user_id` and `trips.driver_id` nullable and adds `contact_id` / `driver_participant_id` so Contacts can be added to events directly. If you have an existing local database from before Phase 4D-1 (or 4D-2), it won't match the new baseline — wipe it and let Flyway recreate everything from scratch:
+
+```bash
+docker compose down -v && docker compose up --build
+```
+
+(or drop/recreate your local `pickup` Postgres database if running the backend without Docker).

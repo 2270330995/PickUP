@@ -38,12 +38,13 @@ public class EventService {
     private static final Set<EventStatus> ACTIVE_EVENT_STATES =
             EnumSet.of(EventStatus.DRAFT, EventStatus.OPEN, EventStatus.CLOSED, EventStatus.IN_PROGRESS);
     private static final Set<ParticipantStatus> ACTIVE_PARTICIPANT_STATES =
-            EnumSet.of(ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED);
+            EnumSet.of(ParticipantStatus.APPROVED, ParticipantStatus.CONFIRMED, ParticipantStatus.READY);
     /** Passengers still waiting for or actively on a ride (excludes arrived / checked-in). */
     private static final Set<ParticipantStatus> PASSENGER_NEEDS_RIDE_STATES =
             EnumSet.of(
                     ParticipantStatus.APPROVED,
                     ParticipantStatus.CONFIRMED,
+                    ParticipantStatus.READY,
                     ParticipantStatus.ASSIGNED,
                     ParticipantStatus.PICKED_UP);
     /**

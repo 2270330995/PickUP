@@ -28,6 +28,8 @@ public interface EventParticipantRepository extends JpaRepository<EventParticipa
 
     boolean existsByEventIdAndUserId(UUID eventId, UUID userId);
 
+    Optional<EventParticipantEntity> findByEventIdAndContactId(UUID eventId, UUID contactId);
+
     boolean existsByVehicleId(UUID vehicleId);
 
     long countByEventId(UUID eventId);
