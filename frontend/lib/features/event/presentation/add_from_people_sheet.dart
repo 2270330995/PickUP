@@ -46,7 +46,15 @@ class _AddFromPeopleSheet extends ConsumerStatefulWidget {
 
 class _AddFromPeopleSheetState extends ConsumerState<_AddFromPeopleSheet> {
   final Map<String, _Selection> _selected = {};
+  final _searchController = TextEditingController();
+  String _query = '';
   bool _submitting = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   ParticipantRole _defaultRoleFor(ContactResponse contact) {
     final preferred = contact.preferredRole;
@@ -134,26 +142,65 @@ class _AddFromPeopleSheetState extends ConsumerState<_AddFromPeopleSheet> {
                       child: Text('Everyone in your People roster is already in this event.'),
                     );
                   }
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: selectable.length,
-                    itemBuilder: (_, i) {
-                      final contact = selectable[i];
-                      final selection = _selected[contact.id];
-                      return _ContactSelectionTile(
-                        contact: contact,
-                        selection: selection,
-                        onToggle: () => _toggle(contact),
-                        onRoleChanged: (role) => setState(() {
-                          selection!.role = role;
-                          if (role != ParticipantRole.driver) {
-                            selection.vehicleId = null;
-                          }
-                        }),
-                        onVehicleChanged: (vehicleId) =>
-                            setState(() => selection!.vehicleId = vehicleId),
-                      );
-                    },
+                  final filtered = selectable
+                      .where((c) => contactMatchesQuery(c, _query))
+                      .toList(growable: false);
+                  // Deliberately not mainAxisSize.min: the Flexible list below
+                  // needs this Column to actually claim the ConstrainedBox's
+                  // bounded height so it has room to scroll within it.
+                  return Column(
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (v) => setState(() => _query = v),
+                        decoration: InputDecoration(
+                          hintText: 'Search people',
+                          prefixIcon: const Icon(Icons.search),
+                          isDense: true,
+                          border: const OutlineInputBorder(),
+                          suffixIcon: _query.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  tooltip: 'Clear search',
+                                  onPressed: () => setState(() {
+                                    _searchController.clear();
+                                    _query = '';
+                                  }),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Text('No people match "$_query".'),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filtered.length,
+                            itemBuilder: (_, i) {
+                              final contact = filtered[i];
+                              final selection = _selected[contact.id];
+                              return _ContactSelectionTile(
+                                contact: contact,
+                                selection: selection,
+                                onToggle: () => _toggle(contact),
+                                onRoleChanged: (role) => setState(() {
+                                  selection!.role = role;
+                                  if (role != ParticipantRole.driver) {
+                                    selection.vehicleId = null;
+                                  }
+                                }),
+                                onVehicleChanged: (vehicleId) =>
+                                    setState(() => selection!.vehicleId = vehicleId),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),

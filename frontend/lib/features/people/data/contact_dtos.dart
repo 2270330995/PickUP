@@ -55,6 +55,18 @@ class ContactResponse {
   }
 }
 
+/// Case-insensitive substring match against name/phone/email/default address
+/// — shared by the People roster search and the "Add from People" picker so
+/// both search the same fields the same way.
+bool contactMatchesQuery(ContactResponse contact, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  return contact.name.toLowerCase().contains(q) ||
+      (contact.phone?.toLowerCase().contains(q) ?? false) ||
+      (contact.email?.toLowerCase().contains(q) ?? false) ||
+      (contact.defaultAddress?.toLowerCase().contains(q) ?? false);
+}
+
 class CreateContactRequest {
   const CreateContactRequest({
     required this.name,

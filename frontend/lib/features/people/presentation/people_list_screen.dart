@@ -10,14 +10,60 @@ import '../data/contact_dtos.dart';
 
 /// The organizer's reusable People roster: drivers and passengers saved for
 /// reuse across events, without requiring them to hold a PickUP account.
-class PeopleListScreen extends ConsumerWidget {
+class PeopleListScreen extends ConsumerStatefulWidget {
   const PeopleListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PeopleListScreen> createState() => _PeopleListScreenState();
+}
+
+class _PeopleListScreenState extends ConsumerState<PeopleListScreen> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final contactsAsync = ref.watch(contactsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('People')),
+      appBar: AppBar(
+        title: const Text('People'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(64),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _query = v),
+              decoration: InputDecoration(
+                hintText: 'Search people',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        tooltip: 'Clear search',
+                        onPressed: () => setState(() {
+                          _searchController.clear();
+                          _query = '';
+                        }),
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(contactsProvider),
         child: contactsAsync.when(
@@ -43,11 +89,23 @@ class PeopleListScreen extends ConsumerWidget {
                 ],
               );
             }
+            final filtered = contacts
+                .where((c) => contactMatchesQuery(c, _query))
+                .toList(growable: false);
+            if (filtered.isEmpty) {
+              return ListView(
+                padding: const EdgeInsets.all(24),
+                children: [
+                  const SizedBox(height: 48),
+                  Center(child: Text('No people match "$_query".')),
+                ],
+              );
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemCount: contacts.length,
+              itemCount: filtered.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) => _ContactCard(contact: contacts[index]),
+              itemBuilder: (context, index) => _ContactCard(contact: filtered[index]),
             );
           },
         ),
