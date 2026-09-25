@@ -3,6 +3,7 @@ package com.pickup.event.planning;
 import com.pickup.common.enums.EventPlanningStatus;
 import com.pickup.common.enums.ParticipantRole;
 import com.pickup.common.enums.ParticipantStatus;
+import com.pickup.common.enums.TripStatus;
 import com.pickup.common.geo.GeoLocationValidator;
 import com.pickup.common.geo.GeoPoint;
 import com.pickup.common.geo.routing.RouteEstimateService;
@@ -18,6 +19,7 @@ import com.pickup.participant.EventParticipantEntity;
 import com.pickup.participant.EventParticipantRepository;
 import com.pickup.trip.TripEntity;
 import com.pickup.trip.TripRepository;
+import com.pickup.tripstop.TripStopEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,15 +27,20 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
 /**
  * Deterministic auto-assignment: builds a full-replace plan and delegates
- * persistence to {@link AssignmentService#submit}. Only replaceable trips are
- * rebuilt; preserved in-flight trips and their drivers/passengers are excluded.
+ * persistence to {@link AssignmentService#submit}. In-flight trips are
+ * excluded via {@link AssignmentPreservation}, and already-ASSIGNED trips are
+ * additionally carried forward unchanged (not re-scored) so a prior manual
+ * plan or auto-assign run isn't reshuffled by running auto-assign again; only
+ * still-unassigned drivers/passengers are newly matched.
  *
  * <p>Phase 4B adds proximity-based driver–passenger matching and nearest-neighbor
  * stop ordering before submit. For {@code DRIVER} participants, {@code pickupLat/Lng}
@@ -83,10 +90,34 @@ public class AutoAssignmentService {
                     participantRepository.findAllByEventIdOrderByCreatedAtAsc(eventId);
             List<TripEntity> existingTrips = tripRepository.findAllByEventId(eventId);
 
-            Set<UUID> lockedDriverIds = AssignmentPreservation.lockedDriverParticipantIds(
-                    eventId, existingTrips, participantRepository);
+            Set<UUID> lockedDriverIds = new HashSet<>(AssignmentPreservation.lockedDriverParticipantIds(
+                    eventId, existingTrips, participantRepository));
             Set<UUID> lockedPassengerIds =
-                    AssignmentPreservation.lockedPassengerParticipantIds(existingTrips);
+                    new HashSet<>(AssignmentPreservation.lockedPassengerParticipantIds(existingTrips));
+
+            // Trips already ASSIGNED (planned but not yet in-flight) are frozen by
+            // auto-assign too, not just the narrower in-flight set above: an organizer's
+            // prior manual edits or a previous auto-assign run are carried forward
+            // unchanged here rather than being re-scored and possibly reshuffled.
+            List<DriverAssignment> preservedAssignments = new ArrayList<>();
+            for (TripEntity trip : existingTrips) {
+                if (trip.getStatus() != TripStatus.ASSIGNED) {
+                    continue; // in-flight trips are already excluded via the locked sets above
+                }
+                UUID driverParticipantId = resolveDriverParticipantId(eventId, trip);
+                if (driverParticipantId == null) {
+                    continue;
+                }
+                List<UUID> passengerIds = trip.getStops().stream()
+                        .sorted(Comparator.comparingInt(TripStopEntity::getSequence))
+                        .map(TripStopEntity::getParticipant)
+                        .filter(Objects::nonNull)
+                        .map(EventParticipantEntity::getId)
+                        .toList();
+                lockedDriverIds.add(driverParticipantId);
+                lockedPassengerIds.addAll(passengerIds);
+                preservedAssignments.add(new DriverAssignment(driverParticipantId, passengerIds, false));
+            }
 
             List<EventParticipantEntity> eligibleDrivers = allParticipants.stream()
                     .filter(p -> p.getRole() == ParticipantRole.DRIVER)
@@ -132,7 +163,9 @@ public class AutoAssignmentService {
                         false));
             }
 
-            SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(orderedAssignments);
+            List<DriverAssignment> allAssignments = new ArrayList<>(preservedAssignments);
+            allAssignments.addAll(orderedAssignments);
+            SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(allAssignments);
             AssignmentPlanResponse response =
                     assignmentService.submit(organizerId, eventId, request);
 
@@ -158,5 +191,23 @@ public class AutoAssignmentService {
                 passenger.getPickupAddress(),
                 passenger.getPickupLat(),
                 passenger.getPickupLng());
+    }
+
+    /**
+     * Mirrors {@link AssignmentPreservation}'s driver lookup: trips since Phase 4D-2
+     * carry {@link TripEntity#getDriverParticipant()} directly; legacy trips fall back
+     * to a (event, user) lookup.
+     */
+    private UUID resolveDriverParticipantId(UUID eventId, TripEntity trip) {
+        EventParticipantEntity driverParticipant = trip.getDriverParticipant();
+        if (driverParticipant != null) {
+            return driverParticipant.getId();
+        }
+        if (trip.getDriver() == null) {
+            return null;
+        }
+        return participantRepository.findByEventIdAndUserId(eventId, trip.getDriver().getId())
+                .map(EventParticipantEntity::getId)
+                .orElse(null);
     }
 }
