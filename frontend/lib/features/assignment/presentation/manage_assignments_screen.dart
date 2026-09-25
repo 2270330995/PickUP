@@ -18,7 +18,14 @@ import '../data/assignment_dtos.dart';
 ///   - One card per confirmed driver, with their vehicle + capacity + currently chosen passengers.
 ///   - Tap "Assign passengers" to multi-select from the pool of confirmed passengers
 ///     not yet placed on any other driver.
-///   - "Save plan" submits the full-replace payload to the backend.
+///   - "Save plan" submits the full-replace payload to the backend; "Cancel"
+///     discards local edits and resets back to the last saved plan.
+///
+/// Auto-assign previously lived here as a third button, but it acts directly
+/// on the server's last-saved plan — a click here while local edits (e.g. an
+/// unsaved manual pick or "Overload" confirmation) hadn't been saved yet
+/// looked like it had silently discarded them. Removed for now until that's
+/// addressed; the backend endpoint and API client method are unaffected.
 class ManageAssignmentsScreen extends ConsumerStatefulWidget {
   const ManageAssignmentsScreen({super.key, required this.eventId});
   final String eventId;
@@ -36,7 +43,6 @@ class _ManageAssignmentsScreenState
   /// Tracks the server plan version last used to populate [_draft].
   String? _draftSeedKey;
   bool _saving = false;
-  bool _autoAssigning = false;
 
   static bool _isAssignable(EventParticipantResponse p) =>
       p.status == ParticipantStatus.confirmed ||
@@ -219,31 +225,14 @@ class _ManageAssignmentsScreenState
     }
   }
 
-  Future<void> _autoAssign() async {
-    setState(() => _autoAssigning = true);
-    try {
-      final savedPlan = await ref
-          .read(assignmentApiProvider)
-          .generateAssignments(widget.eventId);
-      ref.invalidate(eventParticipantsProvider(widget.eventId));
-      ref.invalidate(eventAssignmentPlanProvider(widget.eventId));
-      ref.invalidate(eventDashboardProvider(widget.eventId));
-      ref.invalidate(eventDetailProvider(widget.eventId));
-      ref.invalidate(myTripsProvider);
-      if (!mounted) return;
-      final participants =
-          await ref.read(eventParticipantsProvider(widget.eventId).future);
-      if (!mounted) return;
-      setState(() => _applyDraftFromPlan(participants, savedPlan));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(savedPlan.autoAssignSummaryMessage)),
-      );
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-    } finally {
-      if (mounted) setState(() => _autoAssigning = false);
-    }
+  /// Discards any unsaved local edits, resetting the draft back to whatever
+  /// was last loaded from the server (i.e. the last successfully saved plan).
+  void _cancel() {
+    final participants =
+        ref.read(eventParticipantsProvider(widget.eventId)).valueOrNull;
+    final plan = ref.read(eventAssignmentPlanProvider(widget.eventId)).valueOrNull;
+    if (participants == null || plan == null) return;
+    setState(() => _applyDraftFromPlan(participants, plan));
   }
 
   @override
@@ -293,22 +282,14 @@ class _ManageAssignmentsScreenState
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: _autoAssigning || _saving ? null : _autoAssign,
-                  child: _autoAssigning
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Auto assign'),
+                  onPressed: _saving ? null : _cancel,
+                  child: const Text('Cancel'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton(
-                  onPressed: _saving || _autoAssigning || _draftSeedKey == null
-                      ? null
-                      : _save,
+                  onPressed: _saving || _draftSeedKey == null ? null : _save,
                   child: _saving
                       ? const SizedBox(
                           height: 18,

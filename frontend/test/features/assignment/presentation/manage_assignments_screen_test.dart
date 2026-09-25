@@ -10,6 +10,7 @@ import 'package:pickup/features/event/data/event_api.dart';
 import 'package:pickup/features/event/data/event_dtos.dart';
 import 'package:pickup/features/participant/data/participant_api.dart';
 import 'package:pickup/features/participant/data/participant_dtos.dart';
+import 'package:pickup/features/trip/data/trip_dtos.dart';
 
 const _eventId = 'e1';
 
@@ -84,9 +85,47 @@ EventParticipantResponse _passenger(String id, String name) =>
       createdAt: DateTime(2026, 1, 1),
     );
 
+TripResponse _trip({
+  required String driverParticipantId,
+  required int seats,
+  required List<TripStopSummary> stops,
+}) =>
+    TripResponse(
+      id: 'trip-$driverParticipantId',
+      eventId: _eventId,
+      eventTitle: 'Demo Event',
+      eventTime: DateTime(2026, 1, 1),
+      driverFullName: 'Driver',
+      driverParticipantId: driverParticipantId,
+      vehicleId: 'veh1',
+      vehicleSummary: TripVehicleSummary(id: 'veh1', seats: seats),
+      status: TripStatus.assigned,
+      statusRaw: 'ASSIGNED',
+      finalDestinationAddress: 'Destination Ave',
+      finalDestinationLat: 1,
+      finalDestinationLng: 1,
+      stops: stops,
+      navigationTargetType: NavigationTargetType.none,
+      navigationTargetTypeRaw: 'NONE',
+    );
+
+TripStopSummary _stop({required String id, required String participantId, required String name}) =>
+    TripStopSummary(
+      id: id,
+      sequence: 0,
+      participantId: participantId,
+      userFullName: name,
+      address: '123 Main St',
+      lat: 1,
+      lng: 1,
+      status: StopStatus.pending,
+      statusRaw: 'PENDING',
+    );
+
 Future<_FakeAssignmentApi> _pumpScreen(
   WidgetTester tester, {
   required List<EventParticipantResponse> participants,
+  List<TripResponse> trips = const [],
 }) async {
   tester.view.physicalSize = const Size(1000, 3000);
   tester.view.devicePixelRatio = 1.0;
@@ -101,10 +140,10 @@ Future<_FakeAssignmentApi> _pumpScreen(
         eventDetailProvider.overrideWith((ref, id) async => _event()),
         eventParticipantsProvider.overrideWith((ref, id) async => participants),
         eventAssignmentPlanProvider.overrideWith(
-          (ref, id) async => const AssignmentPlanResponse(
+          (ref, id) async => AssignmentPlanResponse(
             eventId: _eventId,
-            trips: [],
-            unassignedConfirmedPassengerIds: [],
+            trips: trips,
+            unassignedConfirmedPassengerIds: const [],
           ),
         ),
         assignmentApiProvider.overrideWithValue(fakeApi),
@@ -239,6 +278,48 @@ void main() {
       expect(assignment.driverParticipantId, 'driver1');
       expect(assignment.passengerParticipantIds, containsAll(['p1', 'p2']));
       expect(assignment.overrideCapacity, isTrue);
+    });
+  });
+
+  group('ManageAssignmentsScreen — cancel button', () {
+    testWidgets('there is no Auto assign button, only Cancel and Save plan', (tester) async {
+      await _pumpScreen(tester, participants: [_driver(seats: 3)]);
+
+      expect(find.text('Auto assign'), findsNothing);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Save plan'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Cancel discards an unsaved passenger pick and reverts to the last saved plan',
+        (tester) async {
+      final passengerOne = _passenger('p1', 'Passenger One');
+      final passengerTwo = _passenger('p2', 'Passenger Two');
+      await _pumpScreen(
+        tester,
+        participants: [_driver(seats: 3), passengerOne, passengerTwo],
+        trips: [
+          _trip(
+            driverParticipantId: 'driver1',
+            seats: 3,
+            stops: [_stop(id: 's1', participantId: 'p1', name: 'Passenger One')],
+          ),
+        ],
+      );
+
+      expect(find.text('1/2 seats'), findsOneWidget);
+
+      await _openPicker(tester);
+      await _togglePassenger(tester, 'Passenger Two');
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2/2 seats'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1/2 seats'), findsOneWidget);
     });
   });
 }

@@ -104,6 +104,11 @@ public class AutoAssignmentService {
                 if (trip.getStatus() != TripStatus.ASSIGNED) {
                     continue; // in-flight trips are already excluded via the locked sets above
                 }
+                if (trip.getStops().isEmpty()) {
+                    // Nothing to preserve — an empty trip shell shouldn't lock its driver
+                    // out of getting newly-scored passengers.
+                    continue;
+                }
                 UUID driverParticipantId = resolveDriverParticipantId(eventId, trip);
                 if (driverParticipantId == null) {
                     continue;
@@ -116,7 +121,14 @@ public class AutoAssignmentService {
                         .toList();
                 lockedDriverIds.add(driverParticipantId);
                 lockedPassengerIds.addAll(passengerIds);
-                preservedAssignments.add(new DriverAssignment(driverParticipantId, passengerIds, false));
+                // A previously confirmed overload must be re-declared here too —
+                // submit() re-validates capacity for every assignment in the request,
+                // including these carried-forward ones, and would otherwise reject an
+                // already-saved overloaded trip on every subsequent auto-assign run.
+                int maxPassengers = Math.max(0, trip.getVehicle().getSeats() - 1);
+                boolean overrideCapacity = passengerIds.size() > maxPassengers;
+                preservedAssignments.add(
+                        new DriverAssignment(driverParticipantId, passengerIds, overrideCapacity));
             }
 
             List<EventParticipantEntity> eligibleDrivers = allParticipants.stream()
