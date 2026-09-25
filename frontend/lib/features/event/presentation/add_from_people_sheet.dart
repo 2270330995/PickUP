@@ -213,7 +213,7 @@ class _ContactSelectionTile extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: DropdownButtonFormField<ParticipantRole>(
-                  value: selection!.role,
+                  initialValue: selection!.role,
                   decoration: const InputDecoration(
                     labelText: 'Role for this event',
                     border: OutlineInputBorder(),
@@ -272,7 +272,7 @@ class _VehicleDropdown extends ConsumerWidget {
           );
         }
         return DropdownButtonFormField<String?>(
-          value: selectedVehicleId,
+          initialValue: selectedVehicleId,
           decoration: const InputDecoration(
             labelText: 'Vehicle (optional)',
             border: OutlineInputBorder(),

@@ -477,7 +477,7 @@ class _JoinCardState extends ConsumerState<_JoinCard> {
             Text('Join this event', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             DropdownButtonFormField<ParticipantRole>(
-              value: _role,
+              initialValue: _role,
               decoration: const InputDecoration(
                 labelText: 'Join as',
                 border: OutlineInputBorder(),

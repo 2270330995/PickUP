@@ -140,7 +140,7 @@ class _OrganizerParticipantEditSheetState
               Text('Edit ${p.displayLabel}', style: theme.textTheme.titleMedium),
               const SizedBox(height: 16),
               DropdownButtonFormField<ParticipantRole>(
-                value: _role,
+                initialValue: _role,
                 decoration: const InputDecoration(
                   labelText: 'Role for this event',
                   border: OutlineInputBorder(),
