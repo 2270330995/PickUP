@@ -44,6 +44,20 @@ final class PlanningTestSupport {
         return driver;
     }
 
+    static EventParticipantEntity driverWithoutVehicle(
+            UUID id, Instant createdAt, double tripStartLat, double tripStartLng) {
+        EventParticipantEntity driver = EventParticipantEntity.builder()
+                .id(id)
+                .role(ParticipantRole.DRIVER)
+                .status(ParticipantStatus.CONFIRMED)
+                .pickupAddress("Driver trip start")
+                .pickupLat(tripStartLat)
+                .pickupLng(tripStartLng)
+                .build();
+        setCreatedAt(driver, createdAt);
+        return driver;
+    }
+
     static EventParticipantEntity passenger(
             UUID id, Instant createdAt, double pickupLat, double pickupLng) {
         EventParticipantEntity passenger = EventParticipantEntity.builder()

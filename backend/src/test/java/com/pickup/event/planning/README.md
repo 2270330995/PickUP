@@ -6,10 +6,18 @@ Unit tests for the proximity-scoring and stop-ordering heuristics, using plain
 
 ## What's tested
 
-- `DriverPassengerScorerTest` — a passenger is assigned to the closer driver by
-  trip-start distance; equidistant drivers are broken by remaining seat capacity
-  (prefers more room); a driver at capacity leaves excess passengers unassigned
-  rather than over-filling.
+- `DriverPassengerScorerTest` — every (driver, passenger) pair is scored by
+  trip-start distance and consumed globally cheapest-first (not per-passenger),
+  so a passenger goes to the closer driver even when a different passenger is
+  processed "first"; ties are broken deterministically by driver/passenger
+  creation order (encoded directly in the sort comparator); a driver at
+  capacity leaves excess passengers unassigned rather than over-filling; a
+  driver with no vehicle or unknown trip-start location can never receive a
+  passenger. One test (`knownLimitation_globalSortCanMissTrueOptimum`)
+  documents an accepted trade-off: this is a greedy heuristic, not a
+  min-cost-matching solve, so it can still produce a worse total distance than
+  the true optimum in some cases — see `driver-passenger-matching-plan.md` at
+  the repo root for the full discussion.
 - `StopOrderPlannerTest` — nearest-neighbor ordering from a driver's trip start;
   reverse nearest-neighbor ordering (far-to-near) when the driver has no trip
   start, walking backward from the destination; a single stop is returned

@@ -115,7 +115,6 @@ public class AutoAssignmentService {
                     DriverPassengerScorer.assign(
                             eligibleDrivers,
                             eligiblePassengers,
-                            destination,
                             routeEstimateService::distanceMeters);
 
             List<DriverAssignment> orderedAssignments = new ArrayList<>(assignments.size());
