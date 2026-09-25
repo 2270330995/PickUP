@@ -88,7 +88,7 @@ public final class DriverPassengerScorer {
         for (EventParticipantEntity driver : drivers) {
             List<UUID> passengerIds = assignedByDriver.get(driver.getId());
             if (!passengerIds.isEmpty()) {
-                result.add(new DriverAssignment(driver.getId(), List.copyOf(passengerIds)));
+                result.add(new DriverAssignment(driver.getId(), List.copyOf(passengerIds), false));
             }
         }
         return result;

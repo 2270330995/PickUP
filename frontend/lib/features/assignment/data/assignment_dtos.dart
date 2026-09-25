@@ -4,14 +4,21 @@ class DriverAssignmentInput {
   const DriverAssignmentInput({
     required this.driverParticipantId,
     required this.passengerParticipantIds,
+    this.overrideCapacity = false,
   });
 
   final String driverParticipantId;
   final List<String> passengerParticipantIds;
 
+  /// Organizer explicitly confirmed overloading this driver beyond
+  /// `seats - 1` passengers (via the "Overload" warning in the passenger
+  /// picker). The backend rejects an over-capacity list unless this is true.
+  final bool overrideCapacity;
+
   Map<String, dynamic> toJson() => {
         'driverParticipantId': driverParticipantId,
         'passengerParticipantIds': passengerParticipantIds,
+        'overrideCapacity': overrideCapacity,
       };
 }
 

@@ -1,2 +1,7 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
+
+// Maps SDK key for Info.plist's GMSApiKey. Xcode falls back to the shell
+// environment for xcconfig variables it can't resolve itself, so export
+// GOOGLE_MAPS_API_KEY before building — see .env.example for details.
+MAPS_API_KEY = $(GOOGLE_MAPS_API_KEY)

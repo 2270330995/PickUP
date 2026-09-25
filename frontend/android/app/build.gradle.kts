@@ -23,6 +23,12 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Maps SDK key for AndroidManifest.xml's com.google.android.geo.API_KEY
+        // meta-data. Read from the shell environment at build time — export
+        // GOOGLE_MAPS_API_KEY before `flutter run`/`flutter build`; see
+        // .env.example for details. Resolves to "" (blank tiles, no crash) if unset.
+        manifestPlaceholders["MAPS_API_KEY"] = System.getenv("GOOGLE_MAPS_API_KEY") ?: ""
     }
 
     buildTypes {

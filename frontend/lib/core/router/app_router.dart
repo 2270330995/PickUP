@@ -8,6 +8,7 @@ import '../../features/driver/presentation/driver_trip_screen.dart';
 import '../../features/event/presentation/browse_events_screen.dart';
 import '../../features/event/presentation/create_event_screen.dart';
 import '../../features/event/presentation/event_detail_screen.dart';
+import '../../features/event/presentation/event_map_screen.dart';
 import '../../features/organizer/presentation/organizer_dashboard_screen.dart';
 import '../../features/passenger/presentation/passenger_ride_screen.dart';
 import '../../features/people/data/contact_dtos.dart';
@@ -142,6 +143,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.eventTrips,
         builder: (_, state) => EventTripsScreen(
+          eventId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.eventMap,
+        builder: (_, state) => EventMapScreen(
           eventId: state.pathParameters['id']!,
         ),
       ),

@@ -126,11 +126,11 @@ public class AssignmentService {
             int seats = driver.getVehicle().getSeats();
             // Driver occupies one seat; passengers must fit in the remainder.
             int maxPassengers = Math.max(0, seats - 1);
-            if (da.passengerParticipantIds().size() > maxPassengers) {
+            if (da.passengerParticipantIds().size() > maxPassengers && !da.overrideCapacity()) {
                 throw new ConflictException(
                         "Driver " + driver.getId() + " vehicle has " + seats
                                 + " seats; cannot fit " + da.passengerParticipantIds().size()
-                                + " passengers (max " + maxPassengers + ")");
+                                + " passengers (max " + maxPassengers + "). Confirm overrideCapacity to overload anyway.");
             }
 
             List<EventParticipantEntity> passengers = new ArrayList<>(da.passengerParticipantIds().size());

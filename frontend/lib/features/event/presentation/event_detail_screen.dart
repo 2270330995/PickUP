@@ -16,6 +16,7 @@ import '../../participant/presentation/pickup_address_sheet.dart';
 import '../../trip/data/trip_api.dart';
 import '../../trip/data/trip_dtos.dart';
 import '../../user/data/user_api.dart';
+import '../../user/data/user_dtos.dart';
 import '../../vehicle/presentation/vehicle_picker_sheet.dart';
 import '../data/event_api.dart';
 import '../data/event_dtos.dart';
@@ -29,6 +30,18 @@ class EventDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final eventAsync = ref.watch(eventDetailProvider(eventId));
+    // Watched here (in addition to inside _EventDetailBody, further down)
+    // purely to gate the AppBar's map button — the AppBar is built before
+    // _EventDetailBody's own nested async builders resolve, so it needs its
+    // own read of the same, Riverpod-cached provider state rather than
+    // reaching into a value computed deep inside a different widget.
+    final currentUserAsync = ref.watch(currentUserProvider);
+    final participantsAsync = ref.watch(eventParticipantsProvider(eventId));
+    final canViewMap = _canViewEventMap(
+      event: eventAsync.valueOrNull,
+      currentUser: currentUserAsync.valueOrNull,
+      participants: participantsAsync.valueOrNull,
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Event'),
@@ -39,6 +52,14 @@ class EventDetailScreen extends ConsumerWidget {
                 tooltip: 'Dashboard',
                 onPressed: () => context.go(RoutePaths.organizer),
               ),
+        actions: [
+          if (canViewMap)
+            IconButton(
+              icon: const Icon(Icons.map_outlined),
+              tooltip: 'Map',
+              onPressed: () => context.push(RoutePaths.eventMapFor(eventId)),
+            ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -58,6 +79,33 @@ class EventDetailScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Organizers can always view the map; everyone else needs to have
+  /// actually joined (a self-joined, user-backed participant row — the map's
+  /// own login is the organizer's, so Contact-backed rows have no viewer to
+  /// gate here) with a status that already grants trip visibility. Mirrors
+  /// _EventDetailBody._canViewEventTrips's gating for _EventTripsLink, since
+  /// both features expose the same trip/assignment data.
+  static bool _canViewEventMap({
+    required EventResponse? event,
+    required UserResponse? currentUser,
+    required List<EventParticipantResponse>? participants,
+  }) {
+    if (event == null || currentUser == null || participants == null) {
+      return false;
+    }
+    if (currentUser.id == event.organizerId) return true;
+    EventParticipantResponse? mine;
+    for (final p in participants) {
+      if (p.userId == currentUser.id) {
+        mine = p;
+        break;
+      }
+    }
+    return mine != null &&
+        mine.role != ParticipantRole.organizer &&
+        _EventDetailBody._canViewEventTrips(mine.status);
   }
 }
 

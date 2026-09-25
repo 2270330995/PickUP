@@ -23,6 +23,7 @@ class RoutePaths {
   static const myTrips = '/trips';
   static const manageAssignments = '/events/:id/assignments';
   static const eventTrips = '/events/:id/trips';
+  static const eventMap = '/events/:id/map';
 
   static const driverTrip = '/driver/trips/:tripId';
   static const passengerRide = '/passenger/rides/:tripId';
@@ -38,4 +39,5 @@ class RoutePaths {
   static String manageAssignmentsFor(String eventId) =>
       '/events/$eventId/assignments';
   static String eventTripsFor(String eventId) => '/events/$eventId/trips';
+  static String eventMapFor(String eventId) => '/events/$eventId/map';
 }

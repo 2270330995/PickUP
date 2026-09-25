@@ -128,7 +128,8 @@ public class AutoAssignmentService {
                         routeEstimateService::distanceMeters);
                 orderedAssignments.add(new DriverAssignment(
                         assignment.driverParticipantId(),
-                        orderedPassengerIds));
+                        orderedPassengerIds,
+                        false));
             }
 
             SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(orderedAssignments);

@@ -31,6 +31,13 @@
 
   <title>pickup</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    The Maps JavaScript API script (google_maps_flutter web support) is
+    injected at runtime by lib/core/maps/maps_web_bootstrap_web.dart, reading
+    GOOGLE_MAPS_API_KEY from --dart-define — not hardcoded here. Run e.g.
+    `flutter run -d chrome --dart-define=GOOGLE_MAPS_API_KEY=your-key`.
+  -->
 </head>
 <body>
   <!--

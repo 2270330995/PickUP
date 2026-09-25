@@ -37,12 +37,41 @@ Map<String, dynamic> _eventJson() => {
       'createdAt': '2026-01-01T00:00:00.000Z',
     };
 
-Map<String, dynamic> _userJson() => {
-      'id': _organizerId,
-      'email': 'org@test.com',
-      'fullName': 'Org Organizer',
+Map<String, dynamic> _userJson({String id = _organizerId, String fullName = 'Org Organizer'}) => {
+      'id': id,
+      'email': 'user-$id@test.com',
+      'fullName': fullName,
       'phone': null,
       'systemRoles': ['USER'],
+      'createdAt': '2026-01-01T00:00:00.000Z',
+    };
+
+/// A legacy self-joined (user-backed, not Contact-backed) participant row —
+/// unlike _driverJson/_passengerJson below, this has `userId` set so it can
+/// match a non-organizer `currentUserProvider` override for gating tests.
+Map<String, dynamic> _selfJoinedJson({
+  required String id,
+  required String userId,
+  required String role,
+  required String status,
+  String name = 'Self Joined',
+}) =>
+    {
+      'id': id,
+      'eventId': _eventId,
+      'userId': userId,
+      'contactId': null,
+      'displayName': name,
+      'displayEmail': null,
+      'userFullName': name,
+      'userEmail': 'user-$userId@test.com',
+      'role': role,
+      'status': status,
+      'pickupAddress': null,
+      'pickupLat': null,
+      'pickupLng': null,
+      'vehicleId': null,
+      'vehicleSummary': null,
       'createdAt': '2026-01-01T00:00:00.000Z',
     };
 
@@ -170,6 +199,7 @@ Future<void> _pumpScreen(
   WidgetTester tester, {
   required List<Map<String, dynamic>> participants,
   required List<Map<String, dynamic>> trips,
+  Map<String, dynamic>? currentUser,
 }) async {
   tester.view.physicalSize = const Size(1000, 3000);
   tester.view.devicePixelRatio = 1.0;
@@ -187,7 +217,9 @@ Future<void> _pumpScreen(
     ProviderScope(
       overrides: [
         eventDetailProvider.overrideWith((ref, id) async => EventResponse.fromJson(_eventJson())),
-        currentUserProvider.overrideWith((ref) async => UserResponse.fromJson(_userJson())),
+        currentUserProvider.overrideWith(
+          (ref) async => UserResponse.fromJson(currentUser ?? _userJson()),
+        ),
         eventParticipantsProvider.overrideWith(
           (ref, id) async => participants.map(EventParticipantResponse.fromJson).toList(),
         ),
@@ -297,6 +329,68 @@ void main() {
       expect(find.textContaining('seats assigned'), findsOneWidget);
       expect(find.text('2/4 seats assigned'), findsOneWidget);
       expect(find.text('Dell'), findsOneWidget);
+    });
+  });
+
+  group('EventDetailScreen — map button gating', () {
+    final mapButton = find.byIcon(Icons.map_outlined);
+
+    testWidgets('the organizer sees the map button', (tester) async {
+      await _pumpScreen(tester, participants: const [], trips: const []);
+
+      expect(mapButton, findsOneWidget);
+    });
+
+    testWidgets(
+        'a self-joined participant with a trip-viewing status (e.g. CONFIRMED) sees the map button',
+        (tester) async {
+      await _pumpScreen(
+        tester,
+        currentUser: _userJson(id: 'driver-self', fullName: 'Driver Self'),
+        participants: [
+          _selfJoinedJson(
+            id: 'p1',
+            userId: 'driver-self',
+            role: 'DRIVER',
+            status: 'CONFIRMED',
+          ),
+        ],
+        trips: const [],
+      );
+
+      expect(mapButton, findsOneWidget);
+    });
+
+    testWidgets(
+        'a self-joined participant with a non-viewing status (e.g. REQUESTED) does not see the map button',
+        (tester) async {
+      await _pumpScreen(
+        tester,
+        currentUser: _userJson(id: 'driver-self', fullName: 'Driver Self'),
+        participants: [
+          _selfJoinedJson(
+            id: 'p1',
+            userId: 'driver-self',
+            role: 'DRIVER',
+            status: 'REQUESTED',
+          ),
+        ],
+        trips: const [],
+      );
+
+      expect(mapButton, findsNothing);
+    });
+
+    testWidgets('a user who has not joined the event does not see the map button',
+        (tester) async {
+      await _pumpScreen(
+        tester,
+        currentUser: _userJson(id: 'stranger', fullName: 'Stranger'),
+        participants: const [],
+        trips: const [],
+      );
+
+      expect(mapButton, findsNothing);
     });
   });
 }

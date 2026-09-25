@@ -88,7 +88,7 @@ class AssignmentServiceTest {
     void submit_withReadyContactBackedDriver_createsTripWithoutAUserDriver() {
         when(tripRepository.save(any(TripEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(
-                List.of(new DriverAssignment(DRIVER_PARTICIPANT_ID, List.of(PASSENGER_PARTICIPANT_ID))));
+                List.of(new DriverAssignment(DRIVER_PARTICIPANT_ID, List.of(PASSENGER_PARTICIPANT_ID), false)));
 
         AssignmentPlanResponse response = service.submit(ORGANIZER_ID, EVENT_ID, request);
 
@@ -105,7 +105,7 @@ class AssignmentServiceTest {
     void submit_rejectsDriverWithoutVehicle() {
         contactDriver.setVehicle(null);
         SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(
-                List.of(new DriverAssignment(DRIVER_PARTICIPANT_ID, List.of())));
+                List.of(new DriverAssignment(DRIVER_PARTICIPANT_ID, List.of(), false)));
 
         assertThrows(ConflictException.class, () -> service.submit(ORGANIZER_ID, EVENT_ID, request));
     }
@@ -114,8 +114,66 @@ class AssignmentServiceTest {
     void submit_rejectsDriverNotYetReadyForAssignment() {
         contactDriver.setStatus(ParticipantStatus.REQUESTED);
         SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(
-                List.of(new DriverAssignment(DRIVER_PARTICIPANT_ID, List.of())));
+                List.of(new DriverAssignment(DRIVER_PARTICIPANT_ID, List.of(), false)));
 
         assertThrows(ConflictException.class, () -> service.submit(ORGANIZER_ID, EVENT_ID, request));
+    }
+
+    @Test
+    void submit_rejectsOverCapacityAssignment_whenOverrideNotConfirmed() {
+        EventParticipantEntity secondPassenger = EventParticipantEntity.builder()
+                .id(UUID.randomUUID()).event(event).contact(contactDriver.getContact())
+                .role(ParticipantRole.PASSENGER).status(ParticipantStatus.READY)
+                .pickupAddress("Pickup 2").pickupLat(1.2).pickupLng(2.2).build();
+        EventParticipantEntity thirdPassenger = EventParticipantEntity.builder()
+                .id(UUID.randomUUID()).event(event).contact(contactDriver.getContact())
+                .role(ParticipantRole.PASSENGER).status(ParticipantStatus.READY)
+                .pickupAddress("Pickup 3").pickupLat(1.3).pickupLng(2.3).build();
+        // 4-seat vehicle allows at most 3 passengers; this request has 4.
+        EventParticipantEntity fourthPassenger = EventParticipantEntity.builder()
+                .id(UUID.randomUUID()).event(event).contact(contactDriver.getContact())
+                .role(ParticipantRole.PASSENGER).status(ParticipantStatus.READY)
+                .pickupAddress("Pickup 4").pickupLat(1.4).pickupLng(2.4).build();
+        when(participantRepository.findAllByEventIdOrderByCreatedAtAsc(EVENT_ID))
+                .thenReturn(List.of(contactDriver, passenger, secondPassenger, thirdPassenger, fourthPassenger));
+        SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(
+                List.of(new DriverAssignment(
+                        DRIVER_PARTICIPANT_ID,
+                        List.of(passenger.getId(), secondPassenger.getId(), thirdPassenger.getId(),
+                                fourthPassenger.getId()),
+                        false)));
+
+        assertThrows(ConflictException.class, () -> service.submit(ORGANIZER_ID, EVENT_ID, request));
+    }
+
+    @Test
+    void submit_allowsOverCapacityAssignment_whenOverrideConfirmed() {
+        when(tripRepository.save(any(TripEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        EventParticipantEntity secondPassenger = EventParticipantEntity.builder()
+                .id(UUID.randomUUID()).event(event).contact(contactDriver.getContact())
+                .role(ParticipantRole.PASSENGER).status(ParticipantStatus.READY)
+                .pickupAddress("Pickup 2").pickupLat(1.2).pickupLng(2.2).build();
+        EventParticipantEntity thirdPassenger = EventParticipantEntity.builder()
+                .id(UUID.randomUUID()).event(event).contact(contactDriver.getContact())
+                .role(ParticipantRole.PASSENGER).status(ParticipantStatus.READY)
+                .pickupAddress("Pickup 3").pickupLat(1.3).pickupLng(2.3).build();
+        EventParticipantEntity fourthPassenger = EventParticipantEntity.builder()
+                .id(UUID.randomUUID()).event(event).contact(contactDriver.getContact())
+                .role(ParticipantRole.PASSENGER).status(ParticipantStatus.READY)
+                .pickupAddress("Pickup 4").pickupLat(1.4).pickupLng(2.4).build();
+        when(participantRepository.findAllByEventIdOrderByCreatedAtAsc(EVENT_ID))
+                .thenReturn(List.of(contactDriver, passenger, secondPassenger, thirdPassenger, fourthPassenger));
+        SubmitAssignmentsRequest request = new SubmitAssignmentsRequest(
+                List.of(new DriverAssignment(
+                        DRIVER_PARTICIPANT_ID,
+                        List.of(passenger.getId(), secondPassenger.getId(), thirdPassenger.getId(),
+                                fourthPassenger.getId()),
+                        true)));
+
+        AssignmentPlanResponse response = service.submit(ORGANIZER_ID, EVENT_ID, request);
+
+        assertEquals(1, response.trips().size());
+        assertEquals(4, response.trips().get(0).stops().size());
+        assertEquals(ParticipantStatus.ASSIGNED, fourthPassenger.getStatus());
     }
 }

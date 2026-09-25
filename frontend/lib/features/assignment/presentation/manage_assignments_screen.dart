@@ -170,13 +170,30 @@ class _ManageAssignmentsScreenState
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      // Whether a driver's current selection exceeds their vehicle's capacity
+      // is derived fresh from seats here, rather than tracked separately —
+      // the picker's "Overload" dialog is the only path that can put more
+      // than seats-1 passengers into _draft in the first place, so any
+      // over-capacity entry already reflects an explicit organizer decision.
+      final participantsBeforeSave =
+          ref.read(eventParticipantsProvider(widget.eventId)).valueOrNull ??
+              const <EventParticipantResponse>[];
+      final seatsByDriverId = {
+        for (final p in participantsBeforeSave)
+          if (p.vehicleSummary != null) p.id: p.vehicleSummary!.seats,
+      };
       final payload = SubmitAssignmentsRequest(
-        assignments: _draft.entries
-            .map((e) => DriverAssignmentInput(
-                  driverParticipantId: e.key,
-                  passengerParticipantIds: List<String>.from(e.value),
-                ))
-            .toList(growable: false),
+        assignments: _draft.entries.map((e) {
+          final seats = seatsByDriverId[e.key];
+          final maxPassengers = seats == null ? null : (seats - 1).clamp(0, 99);
+          final overCapacity =
+              maxPassengers != null && e.value.length > maxPassengers;
+          return DriverAssignmentInput(
+            driverParticipantId: e.key,
+            passengerParticipantIds: List<String>.from(e.value),
+            overrideCapacity: overCapacity,
+          );
+        }).toList(growable: false),
       );
       final savedPlan = await ref
           .read(assignmentApiProvider)
@@ -580,24 +597,55 @@ class _PassengerPickerSheetState extends State<_PassengerPickerSheet> {
     _ordered = List<String>.from(widget.initiallySelected);
   }
 
+  bool get _isOverloaded => _ordered.length > widget.maxPassengers;
+
   void _toggle(EventParticipantResponse p) {
     setState(() {
       if (_ordered.contains(p.id)) {
         _ordered.remove(p.id);
       } else {
-        if (_ordered.length >= widget.maxPassengers) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Vehicle full: max ${widget.maxPassengers} passengers',
-              ),
-            ),
-          );
-          return;
-        }
+        // Selection itself isn't capped — going over just switches "Done"
+        // below into "Overload", which gates the actual confirmation.
         _ordered.add(p.id);
       }
     });
+  }
+
+  Future<void> _confirmAndClose() async {
+    if (!_isOverloaded) {
+      Navigator.of(context).pop(List<String>.from(_ordered));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Overload this vehicle?'),
+        content: Text(
+          '${widget.driver.displayLabel} has ${widget.maxPassengers} '
+          'passenger seat${widget.maxPassengers == 1 ? '' : 's'}, but '
+          '${_ordered.length} ${_ordered.length == 1 ? 'is' : 'are'} selected. '
+          'This driver will be assigned more passengers than their vehicle '
+          'seats.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Overload'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop(List<String>.from(_ordered));
+    }
   }
 
   @override
@@ -615,8 +663,13 @@ class _PassengerPickerSheetState extends State<_PassengerPickerSheet> {
               style: theme.textTheme.titleMedium,
             ),
             Text(
-              '${_ordered.length}/${widget.maxPassengers} seats used',
-              style: theme.textTheme.bodySmall,
+              _isOverloaded
+                  ? '${_ordered.length}/${widget.maxPassengers} seats used — over capacity'
+                  : '${_ordered.length}/${widget.maxPassengers} seats used',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: _isOverloaded ? theme.colorScheme.error : null,
+                fontWeight: _isOverloaded ? FontWeight.bold : null,
+              ),
             ),
             const SizedBox(height: 8),
             ConstrainedBox(
@@ -667,9 +720,14 @@ class _PassengerPickerSheetState extends State<_PassengerPickerSheet> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () =>
-                        Navigator.of(context).pop(List<String>.from(_ordered)),
-                    child: const Text('Done'),
+                    style: _isOverloaded
+                        ? FilledButton.styleFrom(
+                            backgroundColor: theme.colorScheme.error,
+                            foregroundColor: theme.colorScheme.onError,
+                          )
+                        : null,
+                    onPressed: _confirmAndClose,
+                    child: Text(_isOverloaded ? 'Overload' : 'Done'),
                   ),
                 ),
               ],

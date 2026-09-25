@@ -18,8 +18,15 @@ import java.util.UUID;
 public record SubmitAssignmentsRequest(
         @NotNull @Valid List<DriverAssignment> assignments
 ) {
+    /**
+     * @param overrideCapacity organizer has explicitly confirmed overloading this
+     *                         driver beyond {@code seats - 1} passengers (defaults
+     *                         to false when omitted, so older clients still get the
+     *                         capacity check enforced).
+     */
     public record DriverAssignment(
             @NotNull UUID driverParticipantId,
-            @NotNull List<UUID> passengerParticipantIds
+            @NotNull List<UUID> passengerParticipantIds,
+            boolean overrideCapacity
     ) {}
 }
