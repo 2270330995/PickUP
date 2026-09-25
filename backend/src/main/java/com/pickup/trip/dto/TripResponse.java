@@ -39,6 +39,7 @@ public record TripResponse(
     /** Minimal vehicle detail inlined on trip responses. */
     public record VehicleSummary(
             UUID id,
+            String label,
             String make,
             String model,
             String color,

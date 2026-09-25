@@ -103,9 +103,9 @@ class _ContactVehicleFormSheetState extends ConsumerState<ContactVehicleFormShee
         await api.createVehicle(
           widget.contactId,
           CreateContactVehicleRequest(
-            label: label.isEmpty ? null : label,
-            make: make,
-            model: model,
+            label: label,
+            make: make.isEmpty ? null : make,
+            model: model.isEmpty ? null : model,
             color: color.isEmpty ? null : color,
             plate: plate.isEmpty ? null : plate,
             seats: seats,
@@ -150,30 +150,29 @@ class _ContactVehicleFormSheetState extends ConsumerState<ContactVehicleFormShee
               TextFormField(
                 controller: _labelCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Label (optional)',
+                  labelText: 'Label',
                   hintText: "e.g. Craig's Honda",
                   border: OutlineInputBorder(),
                 ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Label is required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _makeCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Make',
+                  labelText: 'Make (optional)',
                   hintText: 'e.g. Toyota',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Make is required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _modelCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Model',
+                  labelText: 'Model (optional)',
                   hintText: 'e.g. Corolla',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Model is required' : null,
               ),
               const SizedBox(height: 16),
               Row(

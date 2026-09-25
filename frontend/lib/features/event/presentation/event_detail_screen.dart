@@ -1235,14 +1235,26 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
     return Card(
       child: ListTile(
         title: Text(p.displayLabel.isEmpty ? p.userEmail : p.displayLabel),
-        subtitle: Text(
-          needsVehicle
-              ? '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)} · '
-                  'Vehicle required before assignment'
-              : '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)}',
-          style: needsVehicle
-              ? TextStyle(color: Theme.of(context).colorScheme.error)
-              : null,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              needsVehicle
+                  ? '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)} · '
+                      'Vehicle required before assignment'
+                  : '${participantRoleLabel(p.role)} · ${participantStatusLabel(p.status)}',
+              style: needsVehicle
+                  ? TextStyle(color: Theme.of(context).colorScheme.error)
+                  : null,
+            ),
+            if (p.role == ParticipantRole.driver)
+              _DriverSeatCount(
+                eventId: widget.event.id,
+                driverParticipantId: p.id,
+                vehicleSummary: p.vehicleSummary,
+              ),
+          ],
         ),
         trailing: (!widget.isOrganizer && !canRejoin)
             ? null
@@ -1302,6 +1314,54 @@ class _ParticipantTileState extends ConsumerState<_ParticipantTile> {
                 ],
               ),
       ),
+    );
+  }
+}
+
+/// Shows "N/M" seats assigned for a driver row: N is the driver's own seat
+/// plus the number of active stops on their generated trip (or just the
+/// driver's own seat before assignment has run), M is the vehicle's seat
+/// capacity — which itself already includes the driver (see the "Total
+/// seats" field on the vehicle form, labeled "Including the driver").
+class _DriverSeatCount extends ConsumerWidget {
+  const _DriverSeatCount({
+    required this.eventId,
+    required this.driverParticipantId,
+    required this.vehicleSummary,
+  });
+
+  final String eventId;
+  final String driverParticipantId;
+  final ParticipantVehicleSummary? vehicleSummary;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final planAsync = ref.watch(eventAssignmentPlanProvider(eventId));
+    return planAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (plan) {
+        TripResponse? trip;
+        for (final t in plan.trips) {
+          if (t.driverParticipantId == driverParticipantId) {
+            trip = t;
+            break;
+          }
+        }
+        final seats = trip?.vehicleSummary.seats ?? vehicleSummary?.seats;
+        if (seats == null) return const SizedBox.shrink();
+        final passengerCount = trip == null
+            ? 0
+            : trip.stops
+                .where((s) => s.status != StopStatus.cancelled && s.status != StopStatus.skipped)
+                .length;
+        // +1 for the driver's own seat, since vehicle capacity counts it too.
+        final assigned = passengerCount + 1;
+        return Text(
+          '$assigned/$seats seats assigned',
+          style: Theme.of(context).textTheme.bodySmall,
+        );
+      },
     );
   }
 }

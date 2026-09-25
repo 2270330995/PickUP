@@ -205,22 +205,26 @@ class EventParticipantResponse {
 class ParticipantVehicleSummary {
   const ParticipantVehicleSummary({
     required this.id,
-    required this.make,
-    required this.model,
+    this.vehicleLabel,
+    this.make,
+    this.model,
     this.color,
     this.plate,
     required this.seats,
   });
 
   final String id;
-  final String make;
-  final String model;
+  final String? vehicleLabel;
+  final String? make;
+  final String? model;
   final String? color;
   final String? plate;
   final int seats;
 
   String get label {
-    final base = '$make $model';
+    if (vehicleLabel != null && vehicleLabel!.isNotEmpty) return vehicleLabel!;
+    final makeModel = [make, model].where((s) => s != null && s.isNotEmpty).join(' ');
+    final base = makeModel.isNotEmpty ? makeModel : 'Vehicle';
     if (color != null && color!.isNotEmpty) return '$base · $color';
     return base;
   }
@@ -228,8 +232,9 @@ class ParticipantVehicleSummary {
   factory ParticipantVehicleSummary.fromJson(Map<String, dynamic> json) {
     return ParticipantVehicleSummary(
       id: json['id'] as String,
-      make: json['make'] as String? ?? '',
-      model: json['model'] as String? ?? '',
+      vehicleLabel: json['label'] as String?,
+      make: json['make'] as String?,
+      model: json['model'] as String?,
       color: json['color'] as String?,
       plate: json['plate'] as String?,
       seats: (json['seats'] as num?)?.toInt() ?? 0,

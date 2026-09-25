@@ -126,9 +126,9 @@ class ContactVehicleResponse {
   const ContactVehicleResponse({
     required this.id,
     required this.contactId,
-    this.label,
-    required this.make,
-    required this.model,
+    required this.label,
+    this.make,
+    this.model,
     this.color,
     this.plate,
     required this.seats,
@@ -138,30 +138,35 @@ class ContactVehicleResponse {
 
   final String id;
   final String contactId;
-  final String? label;
-  final String make;
-  final String model;
+  final String label;
+  final String? make;
+  final String? model;
   final String? color;
   final String? plate;
   final int seats;
   final String? notes;
   final DateTime createdAt;
 
+  /// Prefers the mandatory [label]; only falls back to make/model/color/plate
+  /// for records that somehow have a blank label (shouldn't happen once the
+  /// backend enforces it, but keeps display robust either way).
   String get displayLabel {
-    if (label != null && label!.isNotEmpty) return label!;
-    final parts = <String>['$make $model'];
+    if (label.isNotEmpty) return label;
+    final parts = <String>[];
+    final makeModel = [make, model].where((s) => s != null && s.isNotEmpty).join(' ');
+    if (makeModel.isNotEmpty) parts.add(makeModel);
     if (color != null && color!.isNotEmpty) parts.add(color!);
     if (plate != null && plate!.isNotEmpty) parts.add(plate!);
-    return parts.join(' · ');
+    return parts.isEmpty ? 'Vehicle' : parts.join(' · ');
   }
 
   factory ContactVehicleResponse.fromJson(Map<String, dynamic> json) {
     return ContactVehicleResponse(
       id: json['id'] as String,
       contactId: json['contactId'] as String,
-      label: json['label'] as String?,
-      make: json['make'] as String? ?? '',
-      model: json['model'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+      make: json['make'] as String?,
+      model: json['model'] as String?,
       color: json['color'] as String?,
       plate: json['plate'] as String?,
       seats: (json['seats'] as num?)?.toInt() ?? 0,
@@ -173,27 +178,27 @@ class ContactVehicleResponse {
 
 class CreateContactVehicleRequest {
   const CreateContactVehicleRequest({
-    this.label,
-    required this.make,
-    required this.model,
+    required this.label,
+    this.make,
+    this.model,
     this.color,
     this.plate,
     required this.seats,
     this.notes,
   });
 
-  final String? label;
-  final String make;
-  final String model;
+  final String label;
+  final String? make;
+  final String? model;
   final String? color;
   final String? plate;
   final int seats;
   final String? notes;
 
   Map<String, dynamic> toJson() => {
-        if (label != null && label!.isNotEmpty) 'label': label,
-        'make': make,
-        'model': model,
+        'label': label,
+        if (make != null && make!.isNotEmpty) 'make': make,
+        if (model != null && model!.isNotEmpty) 'model': model,
         if (color != null && color!.isNotEmpty) 'color': color,
         if (plate != null && plate!.isNotEmpty) 'plate': plate,
         'seats': seats,

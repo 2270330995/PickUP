@@ -31,6 +31,7 @@ public class EventParticipantMapper {
                 vehicle == null ? null : vehicle.getId(),
                 vehicle == null ? null : new VehicleSummary(
                         vehicle.getId(),
+                        vehicle.getLabel(),
                         vehicle.getMake(),
                         vehicle.getModel(),
                         vehicle.getColor(),

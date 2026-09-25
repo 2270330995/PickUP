@@ -1,5 +1,6 @@
 package com.pickup.vehicle;
 
+import com.pickup.common.exception.BadRequestException;
 import com.pickup.common.exception.ConflictException;
 import com.pickup.common.exception.NotFoundException;
 import com.pickup.contact.ContactEntity;
@@ -19,6 +20,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -69,6 +71,23 @@ class VehicleServiceTest {
     }
 
     @Test
+    void createForContact_allowsMissingMakeAndModel() {
+        when(contactService.requireActiveContact(ORGANIZER_ID, CONTACT_ID)).thenReturn(contact);
+        when(vehicleRepository.save(any(VehicleEntity.class))).thenAnswer(inv -> {
+            VehicleEntity v = inv.getArgument(0);
+            v.setId(VEHICLE_ID);
+            return v;
+        });
+
+        VehicleResponse response = vehicleService.createForContact(ORGANIZER_ID, CONTACT_ID,
+                new CreateVehicleRequest("Craig's car", null, null, null, null, 4, null));
+
+        assertEquals("Craig's car", response.label());
+        assertNull(response.make());
+        assertNull(response.model());
+    }
+
+    @Test
     void listForContact_requiresActiveContactFirst() {
         when(contactService.requireActiveContact(ORGANIZER_ID, CONTACT_ID))
                 .thenThrow(new NotFoundException("Contact not found: " + CONTACT_ID));
@@ -82,13 +101,26 @@ class VehicleServiceTest {
     void updateVehicle_rejectsSeatChangeWhenReferencedByTrip() {
         when(contactService.requireActiveContact(ORGANIZER_ID, CONTACT_ID)).thenReturn(contact);
         VehicleEntity vehicle = VehicleEntity.builder()
-                .id(VEHICLE_ID).contact(contact).make("Honda").model("Civic").seats(4).build();
+                .id(VEHICLE_ID).contact(contact).label("Honda Civic").make("Honda").model("Civic").seats(4).build();
         when(vehicleRepository.findByIdAndContactId(VEHICLE_ID, CONTACT_ID)).thenReturn(Optional.of(vehicle));
         when(tripRepository.existsByVehicleId(VEHICLE_ID)).thenReturn(true);
 
         UpdateVehicleRequest request = new UpdateVehicleRequest(null, null, null, null, null, 5, null);
 
         assertThrows(ConflictException.class,
+                () -> vehicleService.updateVehicle(ORGANIZER_ID, CONTACT_ID, VEHICLE_ID, request));
+    }
+
+    @Test
+    void updateVehicle_rejectsBlankLabel() {
+        when(contactService.requireActiveContact(ORGANIZER_ID, CONTACT_ID)).thenReturn(contact);
+        VehicleEntity vehicle = VehicleEntity.builder()
+                .id(VEHICLE_ID).contact(contact).label("Honda Civic").make("Honda").model("Civic").seats(4).build();
+        when(vehicleRepository.findByIdAndContactId(VEHICLE_ID, CONTACT_ID)).thenReturn(Optional.of(vehicle));
+
+        UpdateVehicleRequest request = new UpdateVehicleRequest("   ", null, null, null, null, null, null);
+
+        assertThrows(BadRequestException.class,
                 () -> vehicleService.updateVehicle(ORGANIZER_ID, CONTACT_ID, VEHICLE_ID, request));
     }
 
@@ -107,7 +139,7 @@ class VehicleServiceTest {
     void deleteVehicle_blockedWhenReferencedByTrip() {
         when(contactService.requireActiveContact(ORGANIZER_ID, CONTACT_ID)).thenReturn(contact);
         VehicleEntity vehicle = VehicleEntity.builder()
-                .id(VEHICLE_ID).contact(contact).make("Honda").model("Civic").seats(4).build();
+                .id(VEHICLE_ID).contact(contact).label("Honda Civic").make("Honda").model("Civic").seats(4).build();
         when(vehicleRepository.findByIdAndContactId(VEHICLE_ID, CONTACT_ID)).thenReturn(Optional.of(vehicle));
         when(tripRepository.existsByVehicleId(VEHICLE_ID)).thenReturn(true);
 
@@ -119,7 +151,7 @@ class VehicleServiceTest {
     void deleteVehicle_clearsParticipantLinkageThenDeletes() {
         when(contactService.requireActiveContact(ORGANIZER_ID, CONTACT_ID)).thenReturn(contact);
         VehicleEntity vehicle = VehicleEntity.builder()
-                .id(VEHICLE_ID).contact(contact).make("Honda").model("Civic").seats(4).build();
+                .id(VEHICLE_ID).contact(contact).label("Honda Civic").make("Honda").model("Civic").seats(4).build();
         when(vehicleRepository.findByIdAndContactId(VEHICLE_ID, CONTACT_ID)).thenReturn(Optional.of(vehicle));
         when(tripRepository.existsByVehicleId(VEHICLE_ID)).thenReturn(false);
 

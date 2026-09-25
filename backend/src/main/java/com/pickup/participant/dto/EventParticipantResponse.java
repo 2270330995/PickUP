@@ -31,6 +31,7 @@ public record EventParticipantResponse(
      */
     public record VehicleSummary(
             UUID id,
+            String label,
             String make,
             String model,
             String color,

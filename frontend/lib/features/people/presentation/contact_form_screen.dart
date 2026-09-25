@@ -37,6 +37,17 @@ class _ContactFormScreenState extends ConsumerState<ContactFormScreen> {
   ParticipantRole? _preferredRole;
   bool _submitting = false;
 
+  // Vehicle fields are only offered while creating a new contact — editing an
+  // existing contact's vehicles is handled from the contact detail screen.
+  bool _addVehicle = false;
+  late final TextEditingController _vehicleLabelCtrl;
+  late final TextEditingController _vehicleMakeCtrl;
+  late final TextEditingController _vehicleModelCtrl;
+  late final TextEditingController _vehicleColorCtrl;
+  late final TextEditingController _vehiclePlateCtrl;
+  late final TextEditingController _vehicleSeatsCtrl;
+  late final TextEditingController _vehicleNotesCtrl;
+
   bool get _isEdit => widget.existing != null;
 
   @override
@@ -48,6 +59,13 @@ class _ContactFormScreenState extends ConsumerState<ContactFormScreen> {
     _emailCtrl = TextEditingController(text: e?.email ?? '');
     _notesCtrl = TextEditingController(text: e?.notes ?? '');
     _preferredRole = e?.preferredRole;
+    _vehicleLabelCtrl = TextEditingController();
+    _vehicleMakeCtrl = TextEditingController();
+    _vehicleModelCtrl = TextEditingController();
+    _vehicleColorCtrl = TextEditingController();
+    _vehiclePlateCtrl = TextEditingController();
+    _vehicleSeatsCtrl = TextEditingController(text: '4');
+    _vehicleNotesCtrl = TextEditingController();
     if (e != null && e.hasDefaultLocation && e.defaultLat != null && e.defaultLng != null) {
       _defaultLocation = ResolvedAddress(
         formattedAddress: e.defaultAddress!,
@@ -63,6 +81,13 @@ class _ContactFormScreenState extends ConsumerState<ContactFormScreen> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _notesCtrl.dispose();
+    _vehicleLabelCtrl.dispose();
+    _vehicleMakeCtrl.dispose();
+    _vehicleModelCtrl.dispose();
+    _vehicleColorCtrl.dispose();
+    _vehiclePlateCtrl.dispose();
+    _vehicleSeatsCtrl.dispose();
+    _vehicleNotesCtrl.dispose();
     super.dispose();
   }
 
@@ -106,7 +131,7 @@ class _ContactFormScreenState extends ConsumerState<ContactFormScreen> {
           ),
         );
       } else {
-        await api.create(CreateContactRequest(
+        final created = await api.create(CreateContactRequest(
           name: name,
           phone: phone.isEmpty ? null : phone,
           email: email.isEmpty ? null : email,
@@ -116,6 +141,39 @@ class _ContactFormScreenState extends ConsumerState<ContactFormScreen> {
           notes: notes.isEmpty ? null : notes,
           preferredRole: _preferredRole,
         ));
+        if (_addVehicle) {
+          final label = _vehicleLabelCtrl.text.trim();
+          final make = _vehicleMakeCtrl.text.trim();
+          final model = _vehicleModelCtrl.text.trim();
+          final color = _vehicleColorCtrl.text.trim();
+          final plate = _vehiclePlateCtrl.text.trim();
+          final vehicleNotes = _vehicleNotesCtrl.text.trim();
+          final seats = int.parse(_vehicleSeatsCtrl.text.trim());
+          try {
+            await api.createVehicle(
+              created.id,
+              CreateContactVehicleRequest(
+                label: label,
+                make: make.isEmpty ? null : make,
+                model: model.isEmpty ? null : model,
+                color: color.isEmpty ? null : color,
+                plate: plate.isEmpty ? null : plate,
+                seats: seats,
+                notes: vehicleNotes.isEmpty ? null : vehicleNotes,
+              ),
+            );
+          } on ApiException catch (e) {
+            // The person was already created successfully — surface the vehicle
+            // failure separately rather than losing the new contact.
+            ref.invalidate(contactsProvider);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Person added, but the vehicle could not be saved: ${e.message}')),
+            );
+            context.pop();
+            return;
+          }
+        }
       }
       ref.invalidate(contactsProvider);
       if (widget.existing != null) {
@@ -208,6 +266,100 @@ class _ContactFormScreenState extends ConsumerState<ContactFormScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+                if (!_isEdit) ...[
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: _addVehicle,
+                    onChanged: (v) => setState(() => _addVehicle = v ?? false),
+                    title: const Text('Add a vehicle for this person'),
+                    subtitle: const Text('You can also add or edit vehicles later from their profile'),
+                  ),
+                  if (_addVehicle) ...[
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _vehicleLabelCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Label',
+                        hintText: "e.g. Craig's Honda",
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => (_addVehicle && (v == null || v.trim().isEmpty))
+                          ? 'Label is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _vehicleMakeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Make (optional)',
+                        hintText: 'e.g. Toyota',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _vehicleModelCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Model (optional)',
+                        hintText: 'e.g. Corolla',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _vehicleColorCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Color (optional)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _vehiclePlateCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Plate (optional)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _vehicleSeatsCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Total seats',
+                        helperText: 'Including the driver',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) {
+                        if (!_addVehicle) return null;
+                        if (v == null || v.trim().isEmpty) return 'Required';
+                        final n = int.tryParse(v.trim());
+                        if (n == null) return 'Not a number';
+                        if (n < 1 || n > 15) return 'Must be between 1 and 15';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _vehicleNotesCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Vehicle notes (optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ],
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: _submitting ? null : _submit,

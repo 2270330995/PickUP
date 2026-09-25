@@ -47,6 +47,7 @@ public class TripMapper {
                 vehicle.getId(),
                 new VehicleSummary(
                         vehicle.getId(),
+                        vehicle.getLabel(),
                         vehicle.getMake(),
                         vehicle.getModel(),
                         vehicle.getColor(),

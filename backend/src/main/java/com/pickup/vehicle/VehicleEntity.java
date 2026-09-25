@@ -41,14 +41,14 @@ public class VehicleEntity extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_vehicles_contact"))
     private ContactEntity contact;
 
-    /** Optional friendly name shown in pickers, e.g. "Craig's Honda". */
-    @Column
+    /** Friendly name shown in pickers, e.g. "Craig's Honda". */
+    @Column(nullable = false)
     private String label;
 
-    @Column(nullable = false)
+    @Column
     private String make;
 
-    @Column(nullable = false)
+    @Column
     private String model;
 
     @Column

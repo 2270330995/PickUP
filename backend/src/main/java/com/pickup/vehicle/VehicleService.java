@@ -1,5 +1,6 @@
 package com.pickup.vehicle;
 
+import com.pickup.common.exception.BadRequestException;
 import com.pickup.common.exception.ConflictException;
 import com.pickup.common.exception.ForbiddenException;
 import com.pickup.common.exception.NotFoundException;
@@ -55,9 +56,9 @@ public class VehicleService {
         ContactEntity contact = contactService.requireActiveContact(organizerId, contactId);
         VehicleEntity vehicle = VehicleEntity.builder()
                 .contact(contact)
-                .label(normalizeOptional(request.label()))
-                .make(request.make().trim())
-                .model(request.model().trim())
+                .label(request.label().trim())
+                .make(normalizeOptional(request.make()))
+                .model(normalizeOptional(request.model()))
                 .color(normalizeOptional(request.color()))
                 .plate(normalizeOptional(request.plate()))
                 .seats(request.seats())
@@ -75,7 +76,11 @@ public class VehicleService {
         contactService.requireActiveContact(organizerId, contactId);
         VehicleEntity vehicle = requireOwnedByContact(vehicleId, contactId);
         if (request.label() != null) {
-            vehicle.setLabel(normalizeOptional(request.label()));
+            String trimmedLabel = request.label().trim();
+            if (trimmedLabel.isEmpty()) {
+                throw new BadRequestException("Label cannot be blank");
+            }
+            vehicle.setLabel(trimmedLabel);
         }
         if (request.make() != null && !request.make().isBlank()) {
             vehicle.setMake(request.make().trim());

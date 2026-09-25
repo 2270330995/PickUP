@@ -149,6 +149,7 @@ public class DevSeedService {
                         .findFirst()
                         .orElseGet(() -> vehicleRepository.save(VehicleEntity.builder()
                                 .contact(contact)
+                                .label(spec.make() + " " + spec.model())
                                 .make(spec.make())
                                 .model(spec.model())
                                 .color(spec.color())
