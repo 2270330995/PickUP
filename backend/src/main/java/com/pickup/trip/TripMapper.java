@@ -67,7 +67,8 @@ public class TripMapper {
                         .toList(),
                 nav.targetType(),
                 nav.label(),
-                nav.url()
+                nav.url(),
+                navigationResolver.resolveFullRouteUrl(entity)
         );
     }
 }

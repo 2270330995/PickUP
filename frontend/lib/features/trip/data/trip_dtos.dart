@@ -271,6 +271,7 @@ class TripResponse {
     required this.navigationTargetTypeRaw,
     this.navigationLabel,
     this.navigationUrl,
+    this.fullRouteNavigationUrl,
   });
 
   final String id;
@@ -297,6 +298,12 @@ class TripResponse {
   final String navigationTargetTypeRaw;
   final String? navigationLabel;
   final String? navigationUrl;
+
+  /// The whole planned route (every stop in order, ending at the destination)
+  /// as one Google Maps link — unlike [navigationUrl], which only ever points
+  /// at the current/next leg and is null before the trip starts. Meant to be
+  /// copied and sent to the driver ahead of time.
+  final String? fullRouteNavigationUrl;
 
   bool get hasNavigation =>
       navigationUrl != null &&
@@ -347,6 +354,7 @@ class TripResponse {
       navigationTargetTypeRaw: navRaw,
       navigationLabel: json['navigationLabel'] as String?,
       navigationUrl: json['navigationUrl'] as String?,
+      fullRouteNavigationUrl: json['fullRouteNavigationUrl'] as String?,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -173,19 +174,37 @@ class _EventTripCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () =>
-                      context.push(RoutePaths.tripMonitorFor(trip.id)),
-                  icon: const Icon(Icons.open_in_new, size: 18),
-                  label: const Text('View trip'),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: trip.fullRouteNavigationUrl == null
+                        ? null
+                        : () => _copyRouteLink(context),
+                    icon: const Icon(Icons.copy_outlined, size: 18),
+                    label: const Text('Copy route link'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () =>
+                        context.push(RoutePaths.tripMonitorFor(trip.id)),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('View trip'),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  void _copyRouteLink(BuildContext context) {
+    final url = trip.fullRouteNavigationUrl;
+    if (url == null) return;
+    Clipboard.setData(ClipboardData(text: url));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Route link copied — send it to ${trip.driverFullName}')),
     );
   }
 }

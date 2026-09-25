@@ -34,7 +34,8 @@ public record TripResponse(
         List<TripStopSummary> stops,
         NavigationTargetType navigationTargetType,
         String navigationLabel,
-        String navigationUrl
+        String navigationUrl,
+        String fullRouteNavigationUrl
 ) {
     /** Minimal vehicle detail inlined on trip responses. */
     public record VehicleSummary(
